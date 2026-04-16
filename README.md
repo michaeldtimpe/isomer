@@ -9,12 +9,16 @@ Isomer is a Dockerized, browser-based compliance tracking tool for **ISO 27001**
 ## Quick Start
 
 ```bash
+# First-time setup: create a .env with a real secret
+cp .env.example .env
+python3 -c "import secrets; print('ISOMER_SECRET=' + secrets.token_urlsafe(48))" > .env
+
 # Build and run
-docker-compose up -d --build
+docker compose up -d --build
 
 # Access the application
-# Main app:   http://localhost:27001
-# Settings:   http://localhost:27000
+# User view:   http://localhost:27001/
+# Admin view:  http://localhost:27001/admin   (admin role required)
 
 # Default login
 # Username: admin
@@ -42,10 +46,11 @@ docker-compose up -d --build
 ```
 isomer/
 ├── app.py              # Flask application (routes, DB, auth)
-├── entrypoint.py       # Dual-port launcher (27001 + 27000)
+├── entrypoint.py       # Launches Flask on port 27001
 ├── requirements.txt    # Python dependencies
 ├── Dockerfile          # Container build
 ├── docker-compose.yml  # Compose deployment
+├── .env.example        # Template for ISOMER_SECRET (real .env is gitignored)
 ├── data/
 │   ├── iso27001_controls.json   # 93 Annex A controls with detailed metadata
 │   └── soc2_controls.json       # 44 SOC 2 criteria with detailed metadata
@@ -60,12 +65,21 @@ isomer/
     └── report_view.html  # In-browser audit report
 ```
 
-## Ports
+## Ports & Routing
+
+The application listens on a single port. Admin tools are exposed via a path prefix and gated by role, not by network port.
 
 | Port | Purpose |
 |------|---------|
-| **27001** | Main application — dashboard, companies, controls, evidence, reports |
-| **27000** | Settings — user management, system configuration (same app, different port) |
+| **27001** | Entire application (user views and admin tools) |
+
+| Path | Purpose | Access |
+|------|---------|--------|
+| `/` | Dashboard, companies, controls, evidence, reports | All authenticated users (capabilities filtered by role) |
+| `/admin` | Admin portal — redirects to `/settings` | Admin role only |
+| `/settings` | User management and system configuration | Admin role only |
+
+Reverse proxies (e.g. nginx in front of the container) should forward everything to `127.0.0.1:27001`.
 
 ## Default Users
 
@@ -73,7 +87,14 @@ isomer/
 |----------|----------|------|
 | admin | admin | Admin (full access) |
 
-Additional users can be created via Settings (port 27000).
+Additional users can be created from the admin portal at `/admin` (admin role required). Change the default password immediately after first login.
+
+## Configuration
+
+| Variable | Where it's set | Description |
+|----------|----------------|-------------|
+| `ISOMER_SECRET` | `.env` (gitignored) | Flask session secret. Generate with `python3 -c "import secrets; print(secrets.token_urlsafe(48))"`. Never commit a real value. |
+| `ISOMER_DATA` | `docker-compose.yml` | Data directory inside the container. Defaults to `/data`. |
 
 ## Data Persistence
 
@@ -95,10 +116,3 @@ Each control includes:
 - **Affected Teams** — Which departments are involved
 - **Likely Stakeholders** — Key people responsible
 - **Tags** — Searchable categorization
-
-## Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ISOMER_SECRET` | `isomer-alpha-secret-change-me` | Flask session secret key |
-| `ISOMER_DATA` | `/data` | Data directory path |

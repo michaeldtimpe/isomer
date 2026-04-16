@@ -7,7 +7,7 @@
 
 ## 1. System Overview
 
-Isomer is a self-contained, Dockerized compliance tracking platform designed to manage ISO 27001 and SOC 2 audit engagements. The entire system runs inside a single Docker container, exposing two HTTP ports for the main application and administrative settings. All state is persisted to a mounted volume, making the system portable and trivially backed up.
+Isomer is a self-contained, Dockerized compliance tracking platform designed to manage ISO 27001 and SOC 2 audit engagements. The entire system runs inside a single Docker container, exposing a single HTTP port (27001) that serves both the user dashboard and the admin portal. Admin tools are exposed under the `/admin` path prefix and gated by role, not by network port. All state is persisted to a mounted volume, making the system portable and trivially backed up.
 
 The system follows a traditional server-rendered architecture: a Python/Flask backend serves HTML pages directly to the browser with no frontend build step, no JavaScript framework, and no external service dependencies. This was a deliberate choice to minimize operational complexity for a tool that will typically be run on a single machine or internal server.
 
@@ -19,27 +19,26 @@ The system follows a traditional server-rendered architecture: a Python/Flask ba
 ┌─────────────────────────────────────────────────────────┐
 │                    Docker Container                      │
 │                                                         │
-│  ┌──────────────┐         ┌──────────────┐              │
-│  │  Flask App   │         │  Flask App   │              │
-│  │  (Port 27001)│         │  (Port 27000)│              │
-│  │  Main UI     │         │  Settings UI │              │
-│  └──────┬───────┘         └──────┬───────┘              │
-│         │                        │                      │
-│         │    Same codebase, different port               │
-│         │                        │                      │
-│         └──────────┬─────────────┘                      │
-│                    │                                    │
-│              ┌─────▼──────┐                             │
-│              │  SQLite DB │                             │
-│              │  (WAL mode)│                             │
-│              └─────┬──────┘                             │
-│                    │                                    │
-│              ┌─────▼──────────┐                         │
-│              │  /data volume  │  ← Persistent storage   │
-│              │  ├── isomer.db │                         │
-│              │  └── uploads/  │                         │
-│              │      └── {id}/ │  ← Evidence files       │
-│              └────────────────┘                         │
+│  ┌──────────────────────────────────────────┐           │
+│  │          Flask App (Port 27001)          │           │
+│  │                                          │           │
+│  │  /            → Dashboard (user view)    │           │
+│  │  /company/*   → Controls, evidence, …    │           │
+│  │  /admin       → redirects to /settings   │           │
+│  │  /settings/*  → User mgmt (admin only)   │           │
+│  └────────────────┬─────────────────────────┘           │
+│                   │                                     │
+│             ┌─────▼──────┐                              │
+│             │  SQLite DB │                              │
+│             │  (WAL mode)│                              │
+│             └─────┬──────┘                              │
+│                   │                                     │
+│             ┌─────▼──────────┐                          │
+│             │  /data volume  │  ← Persistent storage    │
+│             │  ├── isomer.db │                          │
+│             │  └── uploads/  │                          │
+│             │      └── {id}/ │  ← Evidence files        │
+│             └────────────────┘                          │
 │                                                         │
 │  ┌────────────────────────┐                             │
 │  │  Bundled JSON Data     │  ← Read-only reference      │
@@ -55,9 +54,9 @@ The system follows a traditional server-rendered architecture: a Python/Flask ba
 
 ### 3.1 Entrypoint (`entrypoint.py`)
 
-The container's CMD runs `entrypoint.py`, which spawns two independent Flask processes sharing the same codebase and the same SQLite database. Both processes import `app.py` and call `app.run()` on their respective ports. A signal handler ensures clean shutdown of both processes on SIGTERM/SIGINT.
+The container's CMD runs `entrypoint.py`, which imports `app.py` and calls `app.run(host="0.0.0.0", port=27001)`. Single process, single port. The admin portal is not a separate service — it's a path (`/admin`) on the same Flask app, gated by the existing `@role_required("admin")` decorators.
 
-Port 27001 serves the full application. Port 27000 serves the identical application (settings are just another route under `/settings`). The dual-port design satisfies the requirement that settings live on a separate port, but the underlying code is shared — there is no separate settings microservice.
+An earlier revision of Isomer ran two Flask processes on ports 27001 and 27000 to separate the "user" and "settings" UIs. That design was removed because the two processes shared the same codebase, database, and auth — the only behavioral difference was a template flag. The flag is now derived from `session.role == "admin"`, so admin-only UI hides consistently for non-admins whether they land on `/` or `/admin`.
 
 ### 3.2 Flask Application (`app.py`)
 
@@ -295,20 +294,21 @@ services:
   isomer:
     build: .
     ports:
-      - "27001:27001"   # Main application
-      - "27000:27000"   # Settings
+      - "27001:27001"
     volumes:
       - isomer_data:/data
+    env_file:
+      - .env
     environment:
-      - ISOMER_SECRET=<random-string>
+      - ISOMER_DATA=/data
 ```
 
 ### 6.3 Environment Variables
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `ISOMER_SECRET` | `isomer-alpha-secret-change-me` | Flask session signing key |
-| `ISOMER_DATA` | `/data` | Path to persistent data directory |
+| Variable | Source | Purpose |
+|----------|--------|---------|
+| `ISOMER_SECRET` | `.env` (gitignored) | Flask session signing key. Never committed. Generate with `python3 -c "import secrets; print(secrets.token_urlsafe(48))"` and store in `.env` for compose to read via `env_file`. |
+| `ISOMER_DATA` | `docker-compose.yml` | Path to persistent data directory. Defaults to `/data`. |
 
 ---
 

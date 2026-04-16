@@ -90,7 +90,7 @@ Isomer defines three roles with a strict hierarchy. Each higher role inherits al
 - Create new company engagements (selecting frameworks and engagement type)
 - Delete companies and all associated data
 - Import company data from previously exported ZIP files
-- Access the settings page (port 27000)
+- Access the admin portal at `/admin` (redirects to `/settings`)
 - Create new user accounts with any role
 - Edit existing user accounts (change display name, email, role, password)
 - Delete user accounts
@@ -260,4 +260,4 @@ Isomer ships with a single default account:
 
 **The first action after deployment should be to change the admin password and create individual accounts for each team member.** Shared accounts undermine accountability — every user should have their own login so that evidence uploads and note edits are attributed to the correct person.
 
-User accounts are managed through the settings page at port 27000, accessible only to users with the Admin role.
+User accounts are managed through the admin portal at `/admin` (which redirects to `/settings`), accessible only to users with the Admin role.
