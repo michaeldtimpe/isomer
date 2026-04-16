@@ -9,4 +9,5 @@ data/uploads/
 
 .env
 .env.*
+!.env.example
 *.secret

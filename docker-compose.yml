@@ -5,12 +5,12 @@ services:
     build: .
     container_name: isomer
     ports:
-      - "27001:27001"   # Main application
-      - "27000:27000"   # Settings / Admin
+      - "27001:27001"
     volumes:
       - isomer_data:/data
+    env_file:
+      - .env
     environment:
-      - ISOMER_SECRET=change-this-to-a-secure-random-string
       - ISOMER_DATA=/data
     restart: unless-stopped
 

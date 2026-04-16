@@ -879,6 +879,12 @@ def company_report_view(company_id):
 # Routes — Settings (port 27000 — served from same app, separated by blueprint or prefix)
 # ---------------------------------------------------------------------------
 
+@app.route("/admin")
+@login_required
+def admin_portal():
+    return redirect(url_for("settings_page"))
+
+
 @app.route("/settings")
 @role_required("admin")
 def settings_page():
@@ -997,13 +1003,10 @@ def api_search(company_id):
 # Entry point
 # ---------------------------------------------------------------------------
 
+@app.context_processor
+def inject_portal_flag():
+    return {"is_admin_portal": session.get("role") == "admin"}
+
+
 if __name__ == "__main__":
-    import sys
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 27001
-    app.config["IS_ADMIN_PORTAL"] = (port == 27000)
-
-    @app.context_processor
-    def inject_portal_flag():
-        return {"is_admin_portal": app.config.get("IS_ADMIN_PORTAL", False)}
-
-    app.run(host="0.0.0.0", port=port, debug=False)
+    app.run(host="0.0.0.0", port=27001, debug=False)

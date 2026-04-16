@@ -22,8 +22,8 @@ COPY . .
 # Create data volume mount point
 RUN mkdir -p /data/uploads
 
-# Expose both ports
-EXPOSE 27001 27000
+# Expose the single application port
+EXPOSE 27001
 
 # Persistent storage volume
 VOLUME ["/data"]
