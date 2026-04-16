@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}New Company{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>{% if company %}Edit Company{% else %}New Company{% endif %}</h1>
+  <p>Set up a compliance engagement</p>
+</div>
+
+<div class="card" style="max-width:640px">
+  <form method="POST">
+    <div class="form-group">
+      <label for="name">Company Name</label>
+      <input type="text" name="name" id="name" required placeholder="Acme Corporation" value="{{ company.name if company else '' }}">
+    </div>
+    <div class="form-group">
+      <label for="description">Description</label>
+      <textarea name="description" id="description" rows="3" placeholder="Brief description of the company and engagement scope">{{ company.description if company else '' }}</textarea>
+    </div>
+    <div class="form-group">
+      <label>Compliance Frameworks</label>
+      <div class="flex gap-2" style="margin-top:0.4rem">
+        <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;font-size:0.95rem;text-transform:none;letter-spacing:0;font-weight:500;color:var(--text-primary)">
+          <input type="checkbox" name="frameworks" value="iso27001" style="width:auto" {% if company and 'iso27001' in company.frameworks %}checked{% endif %}>
+          ISO 27001
+        </label>
+        <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;font-size:0.95rem;text-transform:none;letter-spacing:0;font-weight:500;color:var(--text-primary)">
+          <input type="checkbox" name="frameworks" value="soc2" style="width:auto" {% if company and 'soc2' in company.frameworks %}checked{% endif %}>
+          SOC 2
+        </label>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Engagement Type</label>
+      <div class="flex gap-2" style="margin-top:0.4rem">
+        <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;font-size:0.95rem;text-transform:none;letter-spacing:0;font-weight:500;color:var(--text-primary)">
+          <input type="radio" name="engagement_type" value="first_time" style="width:auto" checked>
+          First Time (initial certification)
+        </label>
+        <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;font-size:0.95rem;text-transform:none;letter-spacing:0;font-weight:500;color:var(--text-primary)">
+          <input type="radio" name="engagement_type" value="renewal" style="width:auto">
+          Renewal (recertification)
+        </label>
+      </div>
+    </div>
+    <div class="flex gap-1 mt-3">
+      <button type="submit" class="btn btn-primary">Create Company</button>
+      <a href="/" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Contacts{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Contacts</h1>
+  <p>{{ contacts|length }} contact{{ 's' if contacts|length != 1 else '' }} across all companies</p>
+</div>
+
+{% if contacts|length > 0 %}
+  {% for company_name, group in contacts|groupby('company_name') %}
+  {% set group_list = group|list %}
+  <div class="card mb-2">
+    <div class="card-header">
+      <h2><a href="/company/{{ group_list[0].company_id }}">{{ company_name }}</a></h2>
+    </div>
+    <table>
+      <thead>
+        <tr><th>Name</th><th>Email</th><th>Phone</th><th>Department</th><th style="width:60px"></th></tr>
+      </thead>
+      <tbody>
+        {% for ct in group_list %}
+        <tr>
+          <td>{{ ct.name }}</td>
+          <td>{{ ct.email or '—' }}</td>
+          <td>{{ ct.phone or '—' }}</td>
+          <td>{{ ct.department or '—' }}</td>
+          <td>
+            {% if session.get('role') in ['admin','auditor'] %}
+            <form method="POST" action="/contact/{{ ct.id }}/delete" style="display:inline" onsubmit="return confirm('Remove this contact?')">
+              <input type="hidden" name="next" value="contacts">
+              <button type="submit" class="btn btn-danger btn-sm" style="padding:2px 6px;font-size:0.7rem">Remove</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    {% if session.get('role') in ['admin','auditor'] %}
+    <form method="POST" action="/company/{{ group_list[0].company_id }}/contact/add" class="mt-2">
+      <input type="hidden" name="next" value="contacts">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:0.5rem;align-items:flex-end">
+        <div class="form-group"><label>Name</label><input type="text" name="name" required placeholder="Jane Smith"></div>
+        <div class="form-group"><label>Email</label><input type="email" name="email" placeholder="jane@company.com"></div>
+        <div class="form-group"><label>Phone</label><input type="text" name="phone" placeholder="+1 555-0123"></div>
+        <div class="form-group"><label>Department</label><input type="text" name="department" placeholder="IT Security"></div>
+        <button type="submit" class="btn btn-primary btn-sm" style="height:36px;margin-bottom:1rem">Add</button>
+      </div>
+    </form>
+    {% endif %}
+  </div>
+  {% endfor %}
+{% else %}
+<div class="card">
+  <p class="text-muted" style="padding:1.5rem 0;text-align:center">No contacts added yet. Add contacts from a company page or use the form below.</p>
+</div>
+{% endif %}
+
+{% if session.get('role') in ['admin','auditor'] and companies|length > 0 %}
+<div class="card mt-2">
+  <div class="card-header"><h2>Add Contact</h2></div>
+  <form method="POST" action="" id="addContactForm">
+    <input type="hidden" name="next" value="contacts">
+    <div class="form-group" style="max-width:300px">
+      <label>Company</label>
+      <select id="companySelect" required>
+        <option value="">Select a company...</option>
+        {% for co in companies %}
+        <option value="/company/{{ co.id }}/contact/add">{{ co.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:0.5rem;align-items:flex-end">
+      <div class="form-group"><label>Name</label><input type="text" name="name" required placeholder="Jane Smith"></div>
+      <div class="form-group"><label>Email</label><input type="email" name="email" placeholder="jane@company.com"></div>
+      <div class="form-group"><label>Phone</label><input type="text" name="phone" placeholder="+1 555-0123"></div>
+      <div class="form-group"><label>Department</label><input type="text" name="department" placeholder="IT Security"></div>
+      <button type="submit" class="btn btn-primary btn-sm" style="height:36px;margin-bottom:1rem">Add</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var sel = document.getElementById('companySelect');
+var form = document.getElementById('addContactForm');
+if (sel && form) {
+  sel.addEventListener('change', function() { form.action = this.value; });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-header flex justify-between items-center">
+  <div>
+    <h1>Dashboard</h1>
+    <p>Manage your compliance engagements</p>
+  </div>
+  <div class="flex gap-1">
+    {% if is_admin_portal and session.get('role') == 'admin' %}
+    <a href="/company/new" class="btn btn-primary">+ New Company</a>
+    <form action="/company/import" method="POST" enctype="multipart/form-data" style="display:inline-flex;gap:0.4rem;align-items:center">
+      <label class="btn btn-secondary" style="margin:0;cursor:pointer">
+        Import
+        <input type="file" name="file" accept=".zip" style="display:none" onchange="this.form.submit()">
+      </label>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if companies|length == 0 %}
+<div class="card" style="text-align:center;padding:4rem 2rem">
+  <svg width="64" height="64" viewBox="0 0 64 64" fill="none" style="margin:0 auto 1rem;display:block;opacity:0.3">
+    <rect x="8" y="14" width="48" height="36" rx="4" stroke="#8b95a9" stroke-width="2"/>
+    <path d="M8 22h48" stroke="#8b95a9" stroke-width="2"/>
+    <circle cx="32" cy="36" r="6" stroke="#8b95a9" stroke-width="2"/>
+    <path d="M32 33v6M29 36h6" stroke="#8b95a9" stroke-width="2" stroke-linecap="round"/>
+  </svg>
+  <h2 style="color:var(--text-secondary)">No companies yet</h2>
+  <p class="text-muted mt-1">Create a company to start tracking compliance controls</p>
+</div>
+{% else %}
+
+<div class="stats-grid">
+  {% set ns = namespace(total=0, closed=0, in_progress=0, stalled=0) %}
+  {% for co in companies %}
+    {% set s = stats[co.id] %}
+    {% set ns.total = ns.total + s.total %}
+    {% set ns.closed = ns.closed + s.closed %}
+    {% set ns.in_progress = ns.in_progress + s.in_progress %}
+    {% set ns.stalled = ns.stalled + s.stalled %}
+  {% endfor %}
+  <div class="stat-card">
+    <div class="stat-value">{{ companies|length }}</div>
+    <div class="stat-label">Companies</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ ns.total }}</div>
+    <div class="stat-label">Total Controls</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:var(--green)">{{ ns.closed }}</div>
+    <div class="stat-label">Closed</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:var(--accent)">{{ ns.in_progress }}</div>
+    <div class="stat-label">In Progress</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:var(--orange)">{{ ns.stalled }}</div>
+    <div class="stat-label">Stalled</div>
+  </div>
+</div>
+
+{% for co in companies %}
+{% set s = stats[co.id] %}
+{% set pct = ((s.closed / s.total * 100) if s.total > 0 else 0)|round|int %}
+<div class="card mb-2">
+  <div class="flex justify-between items-center" style="margin-bottom:1rem">
+    <div>
+      <a href="/company/{{ co.id }}" style="font-size:1.15rem;font-weight:700">{{ co.name }}</a>
+      <div class="flex gap-1 items-center mt-1">
+        {% for fw in co.frameworks|from_json %}
+        <span class="tag">{{ fw|upper }}</span>
+        {% endfor %}
+        <span class="tag" style="background:{% if co.engagement_type=='first_time' %}var(--purple-dim);color:var(--purple){% else %}var(--yellow-dim);color:var(--yellow){% endif %}">
+          {{ co.engagement_type|replace('_',' ')|title }}
+        </span>
+      </div>
+    </div>
+    <div style="text-align:right">
+      <span style="font-size:1.6rem;font-weight:700">{{ pct }}%</span>
+      <span class="text-muted" style="font-size:0.8rem;display:block">complete</span>
+    </div>
+  </div>
+  <div class="progress-bar" style="height:10px">
+    <div class="progress-bar-fill" style="width:{{ pct }}%"></div>
+  </div>
+  <div class="flex gap-2 mt-2" style="font-size:0.82rem;color:var(--text-secondary)">
+    <span><span class="status status-new" style="font-size:0.65rem">New</span> {{ s.new }}</span>
+    <span><span class="status status-in_progress" style="font-size:0.65rem">In Progress</span> {{ s.in_progress }}</span>
+    <span><span class="status status-stalled" style="font-size:0.65rem">Stalled</span> {{ s.stalled }}</span>
+    <span><span class="status status-closed" style="font-size:0.65rem">Closed</span> {{ s.closed }}</span>
+    <span class="text-muted" style="margin-left:auto">{{ s.total }} controls</span>
+  </div>
+</div>
+{% endfor %}
+
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Helper to parse JSON arrays stored as strings in templates
+if (!window.Jinja2) {
+  // Add custom Jinja2 filter simulation
+}
+</script>
+{% endblock %}

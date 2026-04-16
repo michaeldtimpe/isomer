@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+{% block title %}{{ ctrl.control_id }} — {{ ctrl.title }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div class="flex items-center gap-1" style="font-size:0.85rem;margin-bottom:0.5rem">
+    <a href="/" class="text-muted">Dashboard</a>
+    <span class="text-muted">/</span>
+    <a href="/company/{{ company.id }}">{{ company.name }}</a>
+    <span class="text-muted">/</span>
+    <span class="text-secondary">{{ ctrl.control_id }}</span>
+  </div>
+  <div class="flex items-center gap-1">
+    <h1 style="font-size:1.5rem">
+      <span class="mono text-accent" style="margin-right:0.3rem">{{ ctrl.control_id }}</span>
+      {{ ctrl.title }}
+    </h1>
+  </div>
+  <div class="flex gap-1 items-center mt-1">
+    <span class="tag">{{ ctrl.framework|upper }}</span>
+    <span class="tag">{{ ctrl.section }}</span>
+    <span class="status status-{{ ctrl.status }}">{{ ctrl.status|replace('_',' ') }}</span>
+    <span class="challenge-{{ ctrl.challenge_level }}" style="font-size:0.82rem;font-weight:600;margin-left:0.5rem">
+      Challenge: {{ ctrl.challenge_level|capitalize }}
+    </span>
+    {% if ctrl.prior_evidence_valid %}
+    <span class="tag" style="background:var(--green-dim);color:var(--green)">Prior Evidence Valid</span>
+    {% endif %}
+  </div>
+</div>
+
+<div class="detail-grid">
+  <!-- Left Column: Information -->
+  <div>
+    <!-- Summary -->
+    <div class="card mb-2">
+      <div class="card-header"><h2>Description</h2></div>
+      <p style="line-height:1.6">{{ ctrl.description }}</p>
+    </div>
+
+    <!-- Cross-Framework Mappings -->
+    {% if cross_links %}
+    <div class="card mb-2">
+      <div class="card-header"><h2>Cross-Framework Mappings ({{ cross_links|length }})</h2></div>
+      <table>
+        <thead>
+          <tr><th>Control</th><th>Title</th><th>Framework</th><th>Relationship</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          {% for link in cross_links %}
+          <tr>
+            <td><a href="/control/{{ link.id }}" class="mono" style="font-weight:600;font-size:0.85rem">{{ link.control_id }}</a></td>
+            <td><a href="/control/{{ link.id }}">{{ link.title }}</a></td>
+            <td><span class="tag">{{ link.framework|upper }}</span></td>
+            <td>
+              {% if link.relationship == 'strong' %}
+              <span class="tag" style="background:var(--green-dim);color:var(--green)">Strong</span>
+              {% else %}
+              <span class="tag" style="background:var(--yellow-dim);color:var(--yellow)">Partial</span>
+              {% endif %}
+            </td>
+            <td><span class="status status-{{ link.status }}">{{ link.status|replace('_',' ') }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    <!-- Expandable Details -->
+    <div class="card mb-2">
+      <button class="accordion-trigger" type="button">
+        <span style="font-weight:600">Detailed Explanation</span>
+        <span class="chevron">&#9662;</span>
+      </button>
+      <div class="accordion-content">
+        <p style="line-height:1.6;color:var(--text-secondary)">{{ ctrl.detailed_explanation or 'No detailed explanation available.' }}</p>
+      </div>
+
+      <button class="accordion-trigger" type="button">
+        <span style="font-weight:600">Real-World Application</span>
+        <span class="chevron">&#9662;</span>
+      </button>
+      <div class="accordion-content">
+        <p style="line-height:1.6;color:var(--text-secondary)">{{ ctrl.real_world_application or 'No real-world application notes available.' }}</p>
+      </div>
+
+      <button class="accordion-trigger" type="button">
+        <span style="font-weight:600">What It Aids</span>
+        <span class="chevron">&#9662;</span>
+      </button>
+      <div class="accordion-content">
+        <p style="line-height:1.6;color:var(--text-secondary)">{{ ctrl.what_it_aids or 'Not specified.' }}</p>
+      </div>
+
+      <button class="accordion-trigger" type="button">
+        <span style="font-weight:600">Affected Teams &amp; Stakeholders</span>
+        <span class="chevron">&#9662;</span>
+      </button>
+      <div class="accordion-content">
+        <div class="form-row">
+          <div>
+            <label style="margin-bottom:0.5rem">Affected Teams</label>
+            <div>
+              {% for t in ctrl.affected_teams|from_json %}
+              <span class="tag" style="margin-bottom:3px">{{ t }}</span>
+              {% endfor %}
+            </div>
+          </div>
+          <div>
+            <label style="margin-bottom:0.5rem">Likely Stakeholders</label>
+            <div>
+              {% for s in ctrl.likely_stakeholders|from_json %}
+              <span class="tag" style="background:var(--purple-dim);color:var(--purple);margin-bottom:3px">{{ s }}</span>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Evidence -->
+    <div class="card mb-2">
+      <div class="card-header">
+        <h2>Evidence ({{ evidence|length }})</h2>
+      </div>
+      {% if evidence|length > 0 %}
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:0.8rem;margin-bottom:1rem">
+        {% for ev in evidence %}
+        <div style="background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;padding:0.8rem">
+          {% set ext = ev.original_filename.rsplit('.',1)[-1]|lower if '.' in ev.original_filename else '' %}
+          {% if ext in ['png','jpg','jpeg','gif','webp','svg'] %}
+          <a href="/evidence/{{ ev.id }}/view" target="_blank">
+            <img src="/evidence/{{ ev.id }}/view" class="evidence-thumb" style="width:100%;height:100px;object-fit:cover;margin-bottom:0.5rem">
+          </a>
+          {% elif ext == 'pdf' %}
+          <a href="/evidence/{{ ev.id }}/view" target="_blank">
+            <div class="evidence-icon" style="width:100%;height:100px;margin-bottom:0.5rem;font-size:1.2rem">PDF</div>
+          </a>
+          {% else %}
+          <a href="/evidence/{{ ev.id }}/view" target="_blank">
+            <div class="evidence-icon" style="width:100%;height:100px;margin-bottom:0.5rem;font-size:1rem">{{ ext|upper or 'FILE' }}</div>
+          </a>
+          {% endif %}
+          <div style="font-size:0.8rem;font-weight:500;word-break:break-all">{{ ev.original_filename }}</div>
+          <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">
+            {% if ev.file_size %}{{ (ev.file_size / 1024)|round(1) }} KB{% endif %}
+            · {{ ev.uploaded_at[:10] }}
+          </div>
+          {% if ev.description %}
+          <div style="font-size:0.78rem;color:var(--text-secondary);margin-top:4px">{{ ev.description }}</div>
+          {% endif %}
+          {% if session.get('role') in ['admin','auditor'] %}
+          <form method="POST" action="/evidence/{{ ev.id }}/delete" style="margin-top:0.4rem" onsubmit="return confirm('Delete this evidence file?')">
+            <button type="submit" class="btn btn-danger btn-sm" style="font-size:0.7rem;padding:2px 6px">Delete</button>
+          </form>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-muted mb-2">No evidence uploaded yet</p>
+      {% endif %}
+
+      {% if session.get('role') in ['admin','auditor'] %}
+      <form method="POST" action="/control/{{ ctrl.id }}/upload" enctype="multipart/form-data">
+        <div class="form-row" style="align-items:flex-end">
+          <div class="form-group">
+            <label>Upload Evidence</label>
+            <input type="file" name="files" multiple accept=".png,.jpg,.jpeg,.gif,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.log,.json,.xml,.yaml,.yml,.zip,.gz,.tar,.msg,.eml,.html,.md,.bmp,.webp,.svg">
+          </div>
+          <div class="form-group">
+            <label>Description (optional)</label>
+            <input type="text" name="description" placeholder="What does this evidence demonstrate?">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm mt-1">Upload Files</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Right Column: Edit Form -->
+  <div>
+    <form method="POST" action="/control/{{ ctrl.id }}/edit">
+      <div class="card mb-2">
+        <div class="card-header"><h2>Status &amp; Assignment</h2></div>
+
+        <div class="form-group">
+          <label>Status</label>
+          <select name="status" {% if session.get('role') == 'reporter' %}disabled{% endif %}>
+            <option value="new" {% if ctrl.status == 'new' %}selected{% endif %}>New</option>
+            <option value="in_progress" {% if ctrl.status == 'in_progress' %}selected{% endif %}>In Progress</option>
+            <option value="stalled" {% if ctrl.status == 'stalled' %}selected{% endif %}>Stalled</option>
+            <option value="closed" {% if ctrl.status == 'closed' %}selected{% endif %}>Closed</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Assigned To (Name)</label>
+            <input type="text" name="assigned_name" value="{{ ctrl.assigned_name or '' }}" placeholder="Jane Smith" {% if session.get('role') == 'reporter' %}readonly{% endif %}>
+          </div>
+          <div class="form-group">
+            <label>Assigned To (Email)</label>
+            <input type="email" name="assigned_email" value="{{ ctrl.assigned_email or '' }}" placeholder="jane@company.com" {% if session.get('role') == 'reporter' %}readonly{% endif %}>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Tags (comma-separated)</label>
+          {% set tag_list = ctrl.tags|from_json %}
+          <input type="text" name="tags" value="{{ tag_list|join(', ') }}" placeholder="access-control, network, critical" {% if session.get('role') == 'reporter' %}readonly{% endif %}>
+        </div>
+
+        {% if company.engagement_type == 'renewal' %}
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;text-transform:none;letter-spacing:0;font-weight:500;color:var(--text-primary);font-size:0.9rem">
+            <input type="checkbox" name="prior_evidence_valid" style="width:auto" {% if ctrl.prior_evidence_valid %}checked{% endif %} {% if session.get('role') == 'reporter' %}disabled{% endif %}>
+            Prior evidence is still valid (no fresh evidence required)
+          </label>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="card mb-2">
+        <div class="card-header"><h2>Implementation Notes</h2></div>
+        <div class="form-group">
+          <textarea name="notes" rows="10" placeholder="Implementation notes, action items, decisions..." {% if session.get('role') == 'reporter' %}readonly{% endif %} style="min-height:200px;font-size:0.9rem;line-height:1.6">{{ ctrl.notes or '' }}</textarea>
+        </div>
+      </div>
+
+      {% if session.get('role') in ['admin','auditor'] %}
+      <button type="submit" class="btn btn-primary" style="width:100%">Save Changes</button>
+      {% endif %}
+    </form>
+  </div>
+</div>
+{% endblock %}

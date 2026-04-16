@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+
+data/isomer.db
+data/isomer.db-wal
+data/isomer.db-shm
+data/uploads/
+
+.env
+.env.*
+*.secret

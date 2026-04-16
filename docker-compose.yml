@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  isomer:
+    build: .
+    container_name: isomer
+    ports:
+      - "27001:27001"   # Main application
+      - "27000:27000"   # Settings / Admin
+    volumes:
+      - isomer_data:/data
+    environment:
+      - ISOMER_SECRET=change-this-to-a-secure-random-string
+      - ISOMER_DATA=/data
+    restart: unless-stopped
+
+volumes:
+  isomer_data:
+    driver: local

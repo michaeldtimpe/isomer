@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Report — {{ company.name }}{% endblock %}
+{% block extra_css %}
+<style>
+@media print {
+  .topbar, .no-print { display: none !important; }
+  body { background: white; color: #111; }
+  .card { border: 1px solid #ddd; background: white; }
+  .stat-card { border: 1px solid #ddd; background: #f9f9f9; }
+  .stat-card .stat-value { color: #111; }
+  .status { border: 1px solid #999; }
+  .tag { border: 1px solid #ccc; }
+  .progress-bar { background: #eee; }
+  .progress-bar-fill { background: #333; }
+}
+.report-section { page-break-inside: avoid; margin-bottom: 1.5rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header flex justify-between items-center no-print">
+  <div>
+    <div class="flex items-center gap-1" style="font-size:0.85rem;margin-bottom:0.5rem">
+      <a href="/" class="text-muted">Dashboard</a>
+      <span class="text-muted">/</span>
+      <a href="/company/{{ company.id }}">{{ company.name }}</a>
+      <span class="text-muted">/</span>
+      <span class="text-secondary">Report</span>
+    </div>
+    <h1>Audit Report</h1>
+    <p>{{ company.name }} — Status Report</p>
+  </div>
+  <div class="flex gap-1">
+    <button onclick="window.print()" class="btn btn-primary">Print / Save PDF</button>
+    <a href="/company/{{ company.id }}/report" class="btn btn-secondary">Download ZIP</a>
+    <a href="/company/{{ company.id }}" class="btn btn-ghost">Back</a>
+  </div>
+</div>
+
+<!-- Stats -->
+{% set total = controls|length %}
+{% set closed = controls|selectattr('status','equalto','closed')|list|length %}
+{% set in_progress = controls|selectattr('status','equalto','in_progress')|list|length %}
+{% set stalled = controls|selectattr('status','equalto','stalled')|list|length %}
+{% set new_count = controls|selectattr('status','equalto','new')|list|length %}
+{% set pct = ((closed / total * 100) if total > 0 else 0)|round|int %}
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-value">{{ total }}</div>
+    <div class="stat-label">Total Controls</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:var(--green)">{{ closed }}</div>
+    <div class="stat-label">Closed</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:var(--accent)">{{ in_progress }}</div>
+    <div class="stat-label">In Progress</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:var(--orange)">{{ stalled }}</div>
+    <div class="stat-label">Stalled</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:var(--purple)">{{ new_count }}</div>
+    <div class="stat-label">New</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:var(--green)">{{ pct }}%</div>
+    <div class="stat-label">Complete</div>
+    <div class="progress-bar"><div class="progress-bar-fill" style="width:{{ pct }}%"></div></div>
+  </div>
+</div>
+
+<!-- Controls by Section -->
+{% set ns = namespace(current_section='') %}
+{% for ctrl in controls %}
+  {% set sec_key = ctrl.framework ~ '/' ~ ctrl.section %}
+  {% if sec_key != ns.current_section %}
+    {% set ns.current_section = sec_key %}
+    {% if not loop.first %}</div>{% endif %}
+    <div class="card mb-2 report-section">
+      <div class="card-header">
+        <h2>{{ ctrl.section }}</h2>
+        <span class="tag">{{ ctrl.framework|upper }}</span>
+      </div>
+  {% endif %}
+
+  <div style="padding:1rem 0;border-bottom:1px solid var(--border)">
+    <div class="flex justify-between items-center">
+      <div>
+        <span class="mono text-accent" style="font-weight:700;font-size:0.9rem">{{ ctrl.control_id }}</span>
+        <span style="font-weight:600;margin-left:0.4rem">{{ ctrl.title }}</span>
+      </div>
+      <div class="flex gap-1 items-center">
+        <span class="status status-{{ ctrl.status }}">{{ ctrl.status|replace('_',' ') }}</span>
+        <span class="challenge-{{ ctrl.challenge_level }}" style="font-size:0.78rem;font-weight:600">{{ ctrl.challenge_level }}</span>
+      </div>
+    </div>
+    <p style="font-size:0.85rem;color:var(--text-secondary);margin-top:0.4rem;line-height:1.5">{{ ctrl.description }}</p>
+
+    {% if ctrl.assigned_name %}
+    <div style="font-size:0.82rem;margin-top:0.3rem"><span class="text-muted">Assigned:</span> {{ ctrl.assigned_name }} {{ '(' ~ ctrl.assigned_email ~ ')' if ctrl.assigned_email else '' }}</div>
+    {% endif %}
+
+    {% if ctrl.notes %}
+    <div style="font-size:0.82rem;margin-top:0.3rem;padding:0.5rem;background:var(--bg-primary);border-radius:6px;border:1px solid var(--border)">
+      <span class="text-muted" style="font-size:0.72rem;text-transform:uppercase;display:block;margin-bottom:0.2rem">Notes</span>
+      <span style="white-space:pre-wrap">{{ ctrl.notes }}</span>
+    </div>
+    {% endif %}
+
+    {% set ev_list = evidence_map.get(ctrl.id, []) %}
+    {% if ev_list %}
+    <div style="font-size:0.82rem;margin-top:0.5rem">
+      <span class="text-muted" style="font-size:0.72rem;text-transform:uppercase">Evidence ({{ ev_list|length }})</span>
+      <div class="flex gap-1 mt-1" style="flex-wrap:wrap">
+        {% for ev in ev_list %}
+        {% set ext = ev.original_filename.rsplit('.',1)[-1]|lower if '.' in ev.original_filename else '' %}
+        <a href="/evidence/{{ ev.id }}/view" target="_blank" style="text-decoration:none">
+          {% if ext in ['png','jpg','jpeg','gif','webp','svg'] %}
+          <img src="/evidence/{{ ev.id }}/view" style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">
+          {% else %}
+          <div class="evidence-icon" style="width:60px;height:60px">{{ ext|upper or 'FILE' }}</div>
+          {% endif %}
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% set tags = ctrl.tags|from_json %}
+    {% if tags %}
+    <div style="margin-top:0.4rem">
+      {% for t in tags %}<span class="tag">{{ t }}</span>{% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  {% if loop.last %}</div>{% endif %}
+{% endfor %}
+{% endblock %}

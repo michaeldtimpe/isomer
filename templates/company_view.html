@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+{% block title %}{{ company.name }}{% endblock %}
+{% block content %}
+<div class="page-header flex justify-between items-center">
+  <div>
+    <div class="flex items-center gap-1">
+      <a href="/" class="text-muted" style="font-size:0.85rem">Dashboard</a>
+      <span class="text-muted">/</span>
+      <h1 style="font-size:1.5rem">{{ company.name }}</h1>
+    </div>
+    <div class="flex gap-1 items-center mt-1">
+      {% for fw in company.frameworks|from_json %}
+      <span class="tag">{{ fw|upper }}</span>
+      {% endfor %}
+      <span class="tag" style="background:{% if company.engagement_type=='first_time' %}var(--purple-dim);color:var(--purple){% else %}var(--yellow-dim);color:var(--yellow){% endif %}">
+        {{ company.engagement_type|replace('_',' ')|title }}
+      </span>
+    </div>
+  </div>
+  <div class="flex gap-1">
+    <a href="/company/{{ company.id }}/report/view" class="btn btn-secondary">View Report</a>
+    {% if is_admin_portal %}
+    <a href="/company/{{ company.id }}/report" class="btn btn-secondary">Export Report ZIP</a>
+    <a href="/company/{{ company.id }}/export" class="btn btn-secondary">Export Company</a>
+    {% endif %}
+    {% if is_admin_portal and session.get('role') == 'admin' %}
+    <form method="POST" action="/company/{{ company.id }}/delete" onsubmit="return confirm('Delete this company and ALL its data? This cannot be undone.')">
+      <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Stats -->
+{% set pct = ((closed / total * 100) if total > 0 else 0)|round|int %}
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-value">{{ total }}</div>
+    <div class="stat-label">Total Controls</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:var(--green)">{{ closed }}</div>
+    <div class="stat-label">Closed</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:var(--accent)">{{ in_progress }}</div>
+    <div class="stat-label">In Progress</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:var(--orange)">{{ stalled }}</div>
+    <div class="stat-label">Stalled</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:var(--green)">{{ pct }}%</div>
+    <div class="stat-label">Complete</div>
+    <div class="progress-bar"><div class="progress-bar-fill" style="width:{{ pct }}%"></div></div>
+  </div>
+</div>
+
+<!-- Filters -->
+<form method="GET" class="filter-bar">
+  <div class="form-group">
+    <label>Search</label>
+    <input type="text" name="search" placeholder="Control ID, title, notes..." value="{{ current_search }}">
+  </div>
+  <div class="form-group" style="min-width:120px">
+    <label>Section</label>
+    <select name="section">
+      <option value="">All Sections</option>
+      {% for sec, fw in sections %}
+      <option value="{{ sec }}" {% if current_section == sec %}selected{% endif %}>{{ sec }} ({{ fw }})</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="form-group" style="min-width:120px">
+    <label>Status</label>
+    <select name="status">
+      <option value="">All</option>
+      <option value="new" {% if current_status == 'new' %}selected{% endif %}>New</option>
+      <option value="in_progress" {% if current_status == 'in_progress' %}selected{% endif %}>In Progress</option>
+      <option value="stalled" {% if current_status == 'stalled' %}selected{% endif %}>Stalled</option>
+      <option value="closed" {% if current_status == 'closed' %}selected{% endif %}>Closed</option>
+    </select>
+  </div>
+  <div class="form-group" style="min-width:120px">
+    <label>Framework</label>
+    <select name="framework">
+      <option value="">All</option>
+      <option value="iso27001" {% if current_framework == 'iso27001' %}selected{% endif %}>ISO 27001</option>
+      <option value="soc2" {% if current_framework == 'soc2' %}selected{% endif %}>SOC 2</option>
+    </select>
+  </div>
+  <div class="form-group" style="min-width:120px">
+    <label>Tag</label>
+    <select name="tag">
+      <option value="">All Tags</option>
+      {% for t in all_tags %}
+      <option value="{{ t }}" {% if current_tag == t %}selected{% endif %}>{{ t }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="btn btn-primary btn-sm" style="height:36px">Filter</button>
+  <a href="/company/{{ company.id }}" class="btn btn-ghost btn-sm" style="height:36px">Clear</a>
+</form>
+
+<!-- Controls Table -->
+<div class="card">
+  <div class="card-header">
+    <h2>Controls ({{ controls|length }})</h2>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:110px">Control ID</th>
+          <th>Title</th>
+          <th style="width:180px">Section</th>
+          <th style="width:80px">Framework</th>
+          <th style="width:90px">Status</th>
+          <th style="width:90px">Challenge</th>
+          <th style="width:140px">Assigned</th>
+          <th style="width:160px">Tags</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ctrl in controls %}
+        <tr>
+          <td><a href="/control/{{ ctrl.id }}" class="mono" style="font-weight:600;font-size:0.85rem">{{ ctrl.control_id }}</a></td>
+          <td><a href="/control/{{ ctrl.id }}">{{ ctrl.title }}</a></td>
+          <td style="font-size:0.82rem;color:var(--text-secondary)">{{ ctrl.section }}</td>
+          <td>
+            <span class="tag">{{ ctrl.framework|upper }}</span>
+            {% if ctrl.control_id in mapped_control_ids %}<span class="tag" style="background:var(--orange-dim);color:var(--orange)" title="Has cross-framework mapping">&#x2194;</span>{% endif %}
+          </td>
+          <td><span class="status status-{{ ctrl.status }}">{{ ctrl.status|replace('_',' ') }}</span></td>
+          <td><span class="challenge-{{ ctrl.challenge_level }}" style="font-size:0.82rem;font-weight:600">{{ ctrl.challenge_level|capitalize }}</span></td>
+          <td style="font-size:0.82rem">{{ ctrl.assigned_name or '—' }}</td>
+          <td>
+            {% for t in ctrl.tags|from_json %}
+            <span class="tag">{{ t }}</span>
+            {% endfor %}
+          </td>
+        </tr>
+        {% endfor %}
+        {% if controls|length == 0 %}
+        <tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-muted)">No controls match your filters</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Contacts Section -->
+<div class="card mt-3">
+  <div class="card-header">
+    <h2>Company Contacts</h2>
+  </div>
+  {% if contacts|length > 0 %}
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Email</th><th>Phone</th><th>Department</th><th style="width:60px"></th></tr>
+    </thead>
+    <tbody>
+      {% for ct in contacts %}
+      <tr>
+        <td>{{ ct.name }}</td>
+        <td>{{ ct.email or '—' }}</td>
+        <td>{{ ct.phone or '—' }}</td>
+        <td>{{ ct.department or '—' }}</td>
+        <td>
+          {% if session.get('role') in ['admin','auditor'] %}
+          <form method="POST" action="/contact/{{ ct.id }}/delete" style="display:inline" onsubmit="return confirm('Remove this contact?')">
+            <button type="submit" class="btn btn-danger btn-sm" style="padding:2px 6px;font-size:0.7rem">Remove</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="text-muted" style="padding:1rem 0">No contacts added yet</p>
+  {% endif %}
+
+  {% if session.get('role') in ['admin','auditor'] %}
+  <form method="POST" action="/company/{{ company.id }}/contact/add" class="mt-2">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:0.5rem;align-items:flex-end">
+      <div class="form-group"><label>Name</label><input type="text" name="name" required placeholder="Jane Smith"></div>
+      <div class="form-group"><label>Email</label><input type="email" name="email" placeholder="jane@company.com"></div>
+      <div class="form-group"><label>Phone</label><input type="text" name="phone" placeholder="+1 555-0123"></div>
+      <div class="form-group"><label>Department</label><input type="text" name="department" placeholder="IT Security"></div>
+      <button type="submit" class="btn btn-primary btn-sm" style="height:36px;margin-bottom:1rem">Add</button>
+    </div>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Live search via API
+const searchInput = document.querySelector('input[name="search"]');
+if (searchInput) {
+  let debounce;
+  searchInput.addEventListener('input', (e) => {
+    clearTimeout(debounce);
+    // Only auto-search after 500ms pause and 2+ chars
+    // For now, let the form submit handle it
+  });
+}
+</script>
+{% endblock %}

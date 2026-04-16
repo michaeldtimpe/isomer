@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Settings</h1>
+  <p>Manage users and system configuration</p>
+</div>
+
+<div class="detail-grid">
+  <!-- User Management -->
+  <div>
+    <div class="card">
+      <div class="card-header"><h2>Users</h2></div>
+      <table>
+        <thead>
+          <tr><th>Username</th><th>Display Name</th><th>Email</th><th>Role</th><th style="width:120px"></th></tr>
+        </thead>
+        <tbody>
+          {% for user in users %}
+          <tr>
+            <td class="mono" style="font-size:0.85rem">{{ user.username }}</td>
+            <td>{{ user.display_name or '—' }}</td>
+            <td style="font-size:0.85rem">{{ user.email or '—' }}</td>
+            <td><span class="role-badge role-{{ user.role }}">{{ user.role }}</span></td>
+            <td>
+              <div class="flex gap-1">
+                <button type="button" class="btn btn-ghost btn-sm" onclick="editUser('{{ user.id }}','{{ user.display_name }}','{{ user.email }}','{{ user.role }}')">Edit</button>
+                {% if user.id != session.get('user_id') and (user.role != 'admin' or admin_count > 1) %}
+                <form method="POST" action="/settings/user/{{ user.id }}/delete" onsubmit="return confirm('Delete user {{ user.username }}?')">
+                  <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Add User / Edit User -->
+  <div>
+    <div class="card mb-2">
+      <div class="card-header"><h2 id="userFormTitle">Add User</h2></div>
+      <form method="POST" id="userForm" action="/settings/user/add">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" name="username" id="userFormUsername" required placeholder="jsmith">
+        </div>
+        <div class="form-group">
+          <label>Display Name</label>
+          <input type="text" name="display_name" id="userFormDisplay" placeholder="Jane Smith">
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" name="email" id="userFormEmail" placeholder="jane@company.com">
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" name="password" id="userFormPassword" placeholder="Enter password">
+        </div>
+        <div class="form-group">
+          <label>Role</label>
+          <select name="role" id="userFormRole">
+            <option value="reporter">Reporter (read-only)</option>
+            <option value="auditor">Auditor (write access)</option>
+            <option value="admin">Admin (full access)</option>
+          </select>
+        </div>
+        <div class="flex gap-1">
+          <button type="submit" class="btn btn-primary" id="userFormBtn">Add User</button>
+          <button type="button" class="btn btn-ghost" onclick="resetUserForm()" id="userFormCancel" style="display:none">Cancel</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card mb-2">
+      <div class="card-header"><h2>Active Sessions ({{ active_sessions|length }})</h2></div>
+      {% if active_sessions|length > 0 %}
+      <table>
+        <thead>
+          <tr><th>User</th><th>Logged In</th><th>Last Active</th></tr>
+        </thead>
+        <tbody>
+          {% for s in active_sessions %}
+          <tr>
+            <td>{{ s.display_name or s.username }}</td>
+            <td style="font-size:0.82rem" class="mono">{{ s.logged_in_at[:16]|replace('T',' ') }}</td>
+            <td style="font-size:0.82rem" class="mono">{{ s.last_active_at[:16]|replace('T',' ') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="text-muted" style="padding:0.5rem 0">No active sessions</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h2>System Info</h2></div>
+      <table>
+        <tbody>
+          <tr><td class="text-muted" style="width:140px">Version</td><td>Isomer Alpha</td></tr>
+          <tr><td class="text-muted">Main Port</td><td class="mono">27001</td></tr>
+          <tr><td class="text-muted">Settings Port</td><td class="mono">27000</td></tr>
+          <tr><td class="text-muted">Database</td><td class="mono">SQLite (WAL mode)</td></tr>
+          <tr><td class="text-muted">Data Directory</td><td class="mono">/data</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function editUser(id, displayName, email, role) {
+  document.getElementById('userFormTitle').textContent = 'Edit User';
+  document.getElementById('userForm').action = '/settings/user/' + id + '/edit';
+  document.getElementById('userFormDisplay').value = displayName;
+  document.getElementById('userFormEmail').value = email;
+  document.getElementById('userFormRole').value = role;
+  document.getElementById('userFormPassword').placeholder = 'Leave blank to keep current';
+  document.getElementById('userFormPassword').required = false;
+  document.getElementById('userFormUsername').closest('.form-group').style.display = 'none';
+  document.getElementById('userFormBtn').textContent = 'Update User';
+  document.getElementById('userFormCancel').style.display = '';
+}
+function resetUserForm() {
+  document.getElementById('userFormTitle').textContent = 'Add User';
+  document.getElementById('userForm').action = '/settings/user/add';
+  document.getElementById('userForm').reset();
+  document.getElementById('userFormPassword').placeholder = 'Enter password';
+  document.getElementById('userFormPassword').required = true;
+  document.getElementById('userFormUsername').closest('.form-group').style.display = '';
+  document.getElementById('userFormBtn').textContent = 'Add User';
+  document.getElementById('userFormCancel').style.display = 'none';
+}
+</script>
+{% endblock %}
