@@ -1,13 +1,13 @@
 # Isomer — Architecture Document
 
 **Version:** Alpha
-**Last Updated:** April 2026
+**Last Updated:** April 2026 (security hardening pass)
 
 ---
 
 ## 1. System Overview
 
-Isomer is a self-contained, Dockerized compliance tracking platform designed to manage ISO 27001 and SOC 2 audit engagements. The entire system runs inside a single Docker container, exposing a single HTTP port (27001) that serves both the user dashboard and the admin portal. Admin tools are exposed under the `/admin` path prefix and gated by role, not by network port. All state is persisted to a mounted volume, making the system portable and trivially backed up.
+Isomer is a self-contained, Dockerized compliance tracking platform designed to manage ISO 27001 and SOC 2 audit engagements. The entire system runs inside a single Docker container serving HTTP on `127.0.0.1:27001`; a reverse proxy (nginx in the reference deployment) sits in front of it to terminate TLS and apply security headers. Both the user dashboard and the admin portal are served from the same process — admin tools are exposed under the `/admin` path prefix and gated by role, not by network port. All state is persisted to a mounted volume, making the system portable and trivially backed up.
 
 The system follows a traditional server-rendered architecture: a Python/Flask backend serves HTML pages directly to the browser with no frontend build step, no JavaScript framework, and no external service dependencies. This was a deliberate choice to minimize operational complexity for a tool that will typically be run on a single machine or internal server.
 
@@ -52,9 +52,9 @@ The system follows a traditional server-rendered architecture: a Python/Flask ba
 
 ## 3. Component Breakdown
 
-### 3.1 Entrypoint (`entrypoint.py`)
+### 3.1 Entrypoint (`entrypoint.py` + gunicorn)
 
-The container's CMD runs `entrypoint.py`, which imports `app.py` and calls `app.run(host="0.0.0.0", port=27001)`. Single process, single port. The admin portal is not a separate service — it's a path (`/admin`) on the same Flask app, gated by the existing `@role_required("admin")` decorators.
+The container's CMD runs `entrypoint.py` once to create `/data/uploads` and then execs `gunicorn --workers 2 --threads 4 --bind 0.0.0.0:27001 app:app`. The app itself binds to `0.0.0.0` inside the container, but Docker publishes it at `127.0.0.1:27001` on the host, so the only reachable path to the app from outside the container is via the reverse proxy. `app.py` no longer calls `app.run()` — Flask's built-in server is a developer convenience, not a production WSGI server. The admin portal is not a separate service — it's a path (`/admin`) on the same Flask app, gated by the existing `@role_required("admin")` decorators.
 
 An earlier revision of Isomer ran two Flask processes on ports 27001 and 27000 to separate the "user" and "settings" UIs. That design was removed because the two processes shared the same codebase, database, and auth — the only behavioral difference was a template flag. The flag is now derived from `session.role == "admin"`, so admin-only UI hides consistently for non-admins whether they land on `/` or `/admin`.
 
@@ -62,11 +62,13 @@ An earlier revision of Isomer ran two Flask processes on ports 27001 and 27000 t
 
 A single ~910-line Python file containing all backend logic. The application is organized into clearly delimited sections:
 
-**App Setup** (lines 28–50) — Flask initialization, secret key configuration, data directory paths, allowed file extension whitelist, and the custom `from_json` Jinja2 template filter for deserializing JSON strings stored in SQLite.
+**App Setup** — Flask initialization, a required (no-fallback) `ISOMER_SECRET` check that raises at import time if the env var is missing, explicit session-cookie hardening (`Secure`, `HttpOnly`, `SameSite=Lax`, 8h lifetime), `MAX_CONTENT_LENGTH=50 MiB` for uploads, and `CSRFProtect(app)` from Flask-WTF so every state-changing request is token-verified. Also wires the custom `from_json` Jinja2 filter for deserializing JSON strings stored in SQLite.
 
-**Database Layer** (lines 53–154) — Connection factory (`get_db()`) returning `sqlite3.Row`-based connections with WAL journaling and foreign key enforcement. Schema initialization (`init_db()`) creates six tables on first run and seeds a default admin user. Called at module import time so the database is always ready.
+**Database Layer** — Connection factory (`get_db()`) returning `sqlite3.Row`-based connections with WAL journaling and foreign key enforcement. Schema initialization (`init_db()`) creates six tables on first run. If the `users` table is empty it seeds a single `admin` account: password comes from `ISOMER_BOOTSTRAP_PASSWORD` if set, otherwise from `secrets.token_urlsafe(18)`. The chosen credential is written to stderr once and never logged again. There is no built-in `admin / admin` default.
 
-**Authentication** (lines 156–188) — Two decorators: `login_required` checks for a session cookie, `role_required(min_role)` enforces a hierarchical permission model where admin > auditor > reporter (mapped to integers 3 > 2 > 1). Session data stores user ID, username, display name, and role.
+**Authentication** — Two decorators: `login_required` checks for a session cookie, `role_required(min_role)` enforces a hierarchical permission model where admin > auditor > reporter (mapped to integers 3 > 2 > 1). Session data stores user ID, username, display name, and role. The `update_session_activity` before-request hook re-reads the user's row on every request: if the row is gone, or the DB role no longer matches what's in the session cookie, the server-side session and client cookie are both cleared and the request is bounced to `/login`. This closes the window where a deleted or demoted user keeps working until their cookie expires.
+
+**Login rate limit** — An in-memory sliding-window limiter (`_register_login_attempt`) rejects more than 6 attempts per 5 minutes per `(username_lower, client_ip)`. `_client_ip` honors `X-Forwarded-For` / `X-Real-IP` from the proxy so the key is the real visitor, not loopback. nginx does a coarser `limit_req zone=general burst=5 nodelay` on `/login` on top.
 
 **Control Data Loader** (lines 192–204) — `load_framework_controls(framework)` reads the bundled JSON files from `/app/data/` and returns a list of control dictionaries. Called once per framework when a new company is created.
 
@@ -163,6 +165,10 @@ JSON arrays (frameworks, affected_teams, likely_stakeholders, tags) are stored a
 
 Evidence files are stored on disk under `/data/uploads/{company_id}/{uuid_hex}.{ext}`. The original filename is preserved in the database but not used on disk, avoiding collisions and path traversal issues. `werkzeug.utils.secure_filename` sanitizes the original name. The allowed extension whitelist rejects unexpected file types.
 
+`evidence_view` forces `Content-Disposition: attachment` for any original filename ending in `svg`, `html`, `htm`, `xhtml`, or `xml` — those formats execute inline in the origin's security context when served with their default Content-Type, and serving them inline would let a hostile auditor plant `<svg onload=...>` as stored XSS. All other types are still served inline for the normal preview experience.
+
+`company_import` extracts zip entries into `/data/uploads/{new_company_id}/`. Before writing, each entry is validated: the relative path cannot contain `..` components or start with `/`, and the resolved destination must live under the target directory. Entries that fail either check are silently skipped. This closes the classic zip-slip path where a crafted archive (`evidence/../../etc/cron.d/...`) could write outside the intended upload area.
+
 ### 3.5 Templates
 
 Eight Jinja2 templates with a shared base layout:
@@ -256,11 +262,26 @@ In-Browser Report:
 
 ## 5. Security Model
 
+Isomer has no network-level auth (no Cloudflare Access, no mTLS) — authentication is entirely in-process via Flask session cookies. That pushes weight onto four things: the cookie signing key, the cookie flags, the CSRF tokens, and the reverse proxy in front of the app. Any of those breaking degrades the whole system.
+
 ### 5.1 Authentication
 
-Session-based authentication using Flask's signed cookie sessions. Passwords are hashed using Werkzeug's `generate_password_hash` (scrypt by default). The session secret key is configurable via `ISOMER_SECRET` environment variable.
+Session-based authentication using Flask's signed cookie sessions. Passwords are hashed using Werkzeug's `generate_password_hash` (scrypt by default). `ISOMER_SECRET` is **required** — the app raises at import time if it's unset, so a missing env var can't silently downgrade to a known default key. The secret signs both the session cookie and Flask-WTF CSRF tokens.
 
-### 5.2 Authorization
+Cookies are set with:
+
+| Flag | Value | Why |
+|------|-------|-----|
+| `HttpOnly` | `True` | JavaScript (including uploaded SVG/HTML) can't read the cookie |
+| `Secure` | `True` | Browser refuses to send the cookie over plaintext HTTP |
+| `SameSite` | `Lax` | Blocks cross-site POST delivery; still allows top-level navigation |
+| `PERMANENT_SESSION_LIFETIME` | 8h | Bounds a stolen-cookie window |
+
+### 5.2 CSRF protection
+
+Every POST route goes through Flask-WTF's `CSRFProtect`. Templates render `{{ csrf_token() }}` as a hidden input in each form. A `CSRFError` handler flashes a friendly message and bounces back rather than returning an opaque 400. `/logout` is a POST form, not a GET link, so an `<img src="/logout">` on a hostile page can't terminate the admin's session.
+
+### 5.3 Authorization
 
 Three-tier role hierarchy enforced at the route level by decorators:
 
@@ -270,14 +291,38 @@ Three-tier role hierarchy enforced at the route level by decorators:
 | **Auditor** | 2 | Everything Reporter can do, plus: edit control status/notes/assignment/tags, upload/delete evidence, add/delete contacts. |
 | **Admin** | 3 | Everything Auditor can do, plus: create/delete companies, import companies, manage users (add/edit/delete), access settings page. |
 
-The `role_required(min_role)` decorator compares the session role against the required minimum using integer levels. Routes serving data to any authenticated user use `@login_required`. Routes requiring write access use `@role_required("auditor")`. Administrative routes use `@role_required("admin")`.
+The `role_required(min_role)` decorator compares the session role against the required minimum using integer levels. Routes serving data to any authenticated user use `@login_required`. Routes requiring write access use `@role_required("auditor")`. Administrative routes use `@role_required("admin")`. The per-request hook re-reads the DB, so admin deletions or role demotions take effect immediately.
 
-### 5.3 File Upload Security
+### 5.4 Login rate limiting
 
-- Extension whitelist (26 allowed types) rejects unexpected file types
-- `werkzeug.utils.secure_filename` strips path separators and special characters from filenames
-- Files are stored with UUID-based names, eliminating path traversal and collision risks
-- Original filenames preserved only in the database for display
+An in-memory sliding window keyed on `(username_lower, client_ip)` caps attempts at 6 per 5 minutes. Rejections return HTTP 429 and a flash message. The limiter is process-local; with two gunicorn workers the effective ceiling is 12 per 5 minutes per target, which is still well below what a meaningful brute force would need. nginx also has a `limit_req` in front of `/login` as coarse per-IP defense in depth.
+
+### 5.5 File upload security
+
+- Extension whitelist (26 allowed types) rejects unexpected file types.
+- `werkzeug.utils.secure_filename` strips path separators and special characters from filenames.
+- Files are stored with UUID-based names, eliminating path traversal and collision risks.
+- Original filenames preserved only in the database for display.
+- `MAX_CONTENT_LENGTH = 50 MiB` at the app, matched by `client_max_body_size 50M` at nginx.
+- Evidence files in inline-executable formats (`svg`, `html`, `htm`, `xhtml`, `xml`) are served as downloads, not inline.
+- Company-import zip entries are path-validated before extraction (zip-slip defense).
+
+### 5.6 Reverse proxy responsibilities
+
+The provided `deploy/isomer.zoleb.com.conf` vhost handles everything the app doesn't: TLS termination, HTTP/2, `client_max_body_size`, a per-IP rate limit, and response headers:
+
+| Header | Value |
+|--------|-------|
+| `Content-Security-Policy` | `default-src 'self'` base with `'unsafe-inline'` for style/script (templates use inline `<style>`/`<script>`; tighten when externalized) |
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` |
+| `X-Frame-Options` | `DENY` |
+| `X-Content-Type-Options` | `nosniff` |
+| `Referrer-Policy` | `no-referrer` |
+| `Permissions-Policy` | sensors/cameras/microphones/payments all `()` |
+
+### 5.7 Threat model summary
+
+Assumes an attacker without valid credentials can reach `/login` over TLS, but cannot reach the loopback-bound Flask socket directly. Under those assumptions, the remaining attack surface is: the login form (rate-limited), bootstrap password visibility (printed once to stderr, rotate after first login), and code-level issues (CSRF, zip-slip, inline XSS) all covered above. A compromised auditor account can still vandalize data within the tool, but cannot escalate to admin, forge another user's session, or plant stored XSS in the evidence viewer.
 
 ---
 
@@ -285,7 +330,12 @@ The `role_required(min_role)` decorator compares the session role against the re
 
 ### 6.1 Docker
 
-The Dockerfile uses `python:3.11-slim` as the base image with SQLite3 installed. The application code is copied to `/app`. A persistent volume is mounted at `/data` for the database and evidence files.
+The Dockerfile uses `python:3.11-slim` as the base image with SQLite3 installed. The application code is copied to `/app`. A persistent volume is mounted at `/data` for the database and evidence files. The container CMD is a shell wrapper that first runs `python entrypoint.py` (to ensure `/data/uploads` exists) and then execs gunicorn:
+
+```
+python entrypoint.py && exec gunicorn --workers 2 --threads 4 \
+    --bind 0.0.0.0:27001 --access-logfile - --error-logfile - app:app
+```
 
 ### 6.2 Docker Compose
 
@@ -294,7 +344,7 @@ services:
   isomer:
     build: .
     ports:
-      - "27001:27001"
+      - "127.0.0.1:27001:27001"  # loopback-only — nginx is the only ingress
     volumes:
       - isomer_data:/data
     env_file:
@@ -303,11 +353,24 @@ services:
       - ISOMER_DATA=/data
 ```
 
-### 6.3 Environment Variables
+### 6.3 nginx reverse proxy
+
+`deploy/isomer.zoleb.com.conf` is the vhost used in the reference deployment. It terminates TLS (Cloudflare origin cert), enables HTTP/2, applies `client_max_body_size 50M`, a stricter rate limit on `/login`, and the response headers listed in §5.6. Install:
+
+```bash
+sudo install -o root -g root -m 0644 deploy/isomer.zoleb.com.conf \
+  /etc/nginx/sites-available/isomer.zoleb.com.conf
+sudo ln -sf /etc/nginx/sites-available/isomer.zoleb.com.conf \
+  /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+### 6.4 Environment Variables
 
 | Variable | Source | Purpose |
 |----------|--------|---------|
-| `ISOMER_SECRET` | `.env` (gitignored) | Flask session signing key. Never committed. Generate with `python3 -c "import secrets; print(secrets.token_urlsafe(48))"` and store in `.env` for compose to read via `env_file`. |
+| `ISOMER_SECRET` | `.env` (gitignored, `chmod 600`) | Flask session + CSRF signing key. **Required** — app raises at import if unset. Generate with `python3 -c "import secrets; print(secrets.token_urlsafe(48))"`. |
+| `ISOMER_BOOTSTRAP_PASSWORD` | `.env` (optional) | Picks the first-boot `admin` password when the `users` table is empty. If unset, the app generates one and prints it once to stderr. |
 | `ISOMER_DATA` | `docker-compose.yml` | Path to persistent data directory. Defaults to `/data`. |
 
 ---
@@ -330,20 +393,20 @@ services:
 ## 8. Limitations and Future Considerations
 
 **Current limitations:**
-- Single-process Flask server (not production WSGI like Gunicorn) — adequate for small teams but would need a proper WSGI server for heavier load
-- No HTTPS termination (assumes a reverse proxy or VPN in front)
-- No audit logging of user actions (who changed what, when)
-- No email notifications for assignments or status changes
-- SQLite does not support concurrent writes well — fine for small teams, would need PostgreSQL for larger deployments
-- No pagination on controls listing — works fine for 137 controls but would need pagination if custom controls are added
-- Session secret should be rotated and stored securely in production
+- Single Docker host, single gunicorn instance — adequate for small teams but not horizontally scaled.
+- TLS is not terminated inside the container; requires a reverse proxy (nginx vhost provided).
+- No audit logging of user actions (who changed what, when).
+- No email notifications for assignments or status changes.
+- SQLite does not support concurrent writes well — fine for small teams, would need PostgreSQL for larger deployments.
+- Login rate limit is in-memory per worker, so a restart or scale-out resets it. Acceptable given the `(username, client_ip)` key and nginx's per-IP backstop, but not a substitute for a shared store at higher traffic.
+- No pagination on controls listing — works fine for 137 controls but would need pagination if custom controls are added.
 
 **Potential future enhancements:**
-- Gunicorn/uWSGI for production serving
-- PostgreSQL option for multi-user concurrency
-- Audit trail table recording all mutations
-- Email integration for assignment notifications
-- LDAP/SSO integration for enterprise authentication
-- API tokens for programmatic access
-- Custom control definitions beyond ISO 27001 and SOC 2
-- Evidence versioning and approval workflows
+- Externalize template `<style>` and `<script>` blocks so CSP can drop `'unsafe-inline'`.
+- PostgreSQL option for multi-user concurrency.
+- Audit trail table recording all mutations.
+- Email integration for assignment notifications.
+- LDAP/SSO integration for enterprise authentication.
+- API tokens for programmatic access.
+- Custom control definitions beyond ISO 27001 and SOC 2.
+- Evidence versioning and approval workflows.
