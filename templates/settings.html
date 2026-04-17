@@ -27,6 +27,7 @@
                 <button type="button" class="btn btn-ghost btn-sm" onclick="editUser('{{ user.id }}','{{ user.display_name }}','{{ user.email }}','{{ user.role }}')">Edit</button>
                 {% if user.id != session.get('user_id') and (user.role != 'admin' or admin_count > 1) %}
                 <form method="POST" action="/settings/user/{{ user.id }}/delete" onsubmit="return confirm('Delete user {{ user.username }}?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                 </form>
                 {% endif %}
@@ -44,6 +45,7 @@
     <div class="card mb-2">
       <div class="card-header"><h2 id="userFormTitle">Add User</h2></div>
       <form method="POST" id="userForm" action="/settings/user/add">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
           <label>Username</label>
           <input type="text" name="username" id="userFormUsername" required placeholder="jsmith">

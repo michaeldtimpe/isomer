@@ -151,6 +151,7 @@
           {% endif %}
           {% if session.get('role') in ['admin','auditor'] %}
           <form method="POST" action="/evidence/{{ ev.id }}/delete" style="margin-top:0.4rem" onsubmit="return confirm('Delete this evidence file?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-danger btn-sm" style="font-size:0.7rem;padding:2px 6px">Delete</button>
           </form>
           {% endif %}
@@ -163,6 +164,7 @@
 
       {% if session.get('role') in ['admin','auditor'] %}
       <form method="POST" action="/control/{{ ctrl.id }}/upload" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-row" style="align-items:flex-end">
           <div class="form-group">
             <label>Upload Evidence</label>
@@ -182,6 +184,7 @@
   <!-- Right Column: Edit Form -->
   <div>
     <form method="POST" action="/control/{{ ctrl.id }}/edit">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="card mb-2">
         <div class="card-header"><h2>Status &amp; Assignment</h2></div>
 

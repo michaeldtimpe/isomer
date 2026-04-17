@@ -10,6 +10,7 @@
     {% if is_admin_portal and session.get('role') == 'admin' %}
     <a href="/company/new" class="btn btn-primary">+ New Company</a>
     <form action="/company/import" method="POST" enctype="multipart/form-data" style="display:inline-flex;gap:0.4rem;align-items:center">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label class="btn btn-secondary" style="margin:0;cursor:pointer">
         Import
         <input type="file" name="file" accept=".zip" style="display:none" onchange="this.form.submit()">

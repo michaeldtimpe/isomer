@@ -261,7 +261,10 @@ tr:hover td { background: rgba(56,189,248,0.03); }
   <div class="topbar-user">
     <span>{{ session.get('display_name', session.get('username')) }}</span>
     <span class="role-badge role-{{ session.get('role','reporter') }}">{{ session.get('role','reporter') }}</span>
-    <a href="/logout" class="btn btn-ghost btn-sm" style="margin-left: 0.5rem;">Logout</a>
+    <form method="POST" action="/logout" style="display:inline;margin-left:0.5rem">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-ghost btn-sm">Logout</button>
+    </form>
   </div>
   {% endif %}
 </div>

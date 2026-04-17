@@ -22,6 +22,7 @@ from flask import (
     Flask, render_template, request, redirect, url_for, session,
     jsonify, send_file, flash, abort, Response
 )
+from flask_wtf.csrf import CSRFProtect, CSRFError
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
@@ -48,7 +49,18 @@ app.config.update(
     SESSION_COOKIE_SECURE=True,
     SESSION_COOKIE_SAMESITE="Lax",
     PERMANENT_SESSION_LIFETIME=datetime.timedelta(hours=8),
+    # CSRFProtect reads WTF_CSRF_SECRET_KEY if set, else falls back to
+    # app.secret_key — which is already required above.
+    WTF_CSRF_TIME_LIMIT=None,  # tokens valid for the whole session
 )
+
+csrf = CSRFProtect(app)
+
+
+@app.errorhandler(CSRFError)
+def _handle_csrf_error(e):
+    flash("Session token expired or missing — please reload and try again.", "error")
+    return redirect(request.referrer or url_for("dashboard")), 400
 
 # Custom Jinja2 filter to parse JSON strings
 @app.template_filter('from_json')
@@ -319,7 +331,7 @@ def login():
     return render_template("login.html")
 
 
-@app.route("/logout")
+@app.route("/logout", methods=["POST"])
 def logout():
     sid = session.get("session_id")
     if sid:

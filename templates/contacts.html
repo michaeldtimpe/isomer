@@ -27,6 +27,7 @@
           <td>
             {% if session.get('role') in ['admin','auditor'] %}
             <form method="POST" action="/contact/{{ ct.id }}/delete" style="display:inline" onsubmit="return confirm('Remove this contact?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="next" value="contacts">
               <button type="submit" class="btn btn-danger btn-sm" style="padding:2px 6px;font-size:0.7rem">Remove</button>
             </form>
@@ -39,6 +40,7 @@
 
     {% if session.get('role') in ['admin','auditor'] %}
     <form method="POST" action="/company/{{ group_list[0].company_id }}/contact/add" class="mt-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="next" value="contacts">
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:0.5rem;align-items:flex-end">
         <div class="form-group"><label>Name</label><input type="text" name="name" required placeholder="Jane Smith"></div>
@@ -61,6 +63,7 @@
 <div class="card mt-2">
   <div class="card-header"><h2>Add Contact</h2></div>
   <form method="POST" action="" id="addContactForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="next" value="contacts">
     <div class="form-group" style="max-width:300px">
       <label>Company</label>

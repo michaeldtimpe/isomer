@@ -41,6 +41,7 @@ button:hover{background:#5cc9f9}
   {% endwith %}
 
   <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label for="username">Username</label>
     <input type="text" name="username" id="username" required autofocus>
     <label for="password">Password</label>
