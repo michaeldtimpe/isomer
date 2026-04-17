@@ -4,8 +4,13 @@ services:
   isomer:
     build: .
     container_name: isomer
+    # Loopback-only publish. The app has in-process auth but no TLS,
+    # rate-limiting, or security headers — those belong on the nginx
+    # reverse proxy in front of it. Publishing on 0.0.0.0 would let
+    # any host-firewall-permitted client speak plaintext HTTP to Flask
+    # and bypass the CSP/HSTS/nginx layer entirely.
     ports:
-      - "27001:27001"
+      - "127.0.0.1:27001:27001"
     volumes:
       - isomer_data:/data
     env_file:

@@ -4,14 +4,19 @@ Version: Alpha
 """
 
 import os
+import sys
 import json
+import secrets
+import time
 import uuid
 import shutil
 import zipfile
 import io
 import datetime
+from collections import defaultdict, deque
 from functools import wraps
 from pathlib import Path
+from threading import Lock
 
 from flask import (
     Flask, render_template, request, redirect, url_for, session,
@@ -25,8 +30,25 @@ import sqlite3
 # App Setup
 # ---------------------------------------------------------------------------
 
+_secret = os.environ.get("ISOMER_SECRET")
+if not _secret:
+    raise RuntimeError(
+        "ISOMER_SECRET is not set. Refusing to start with a default/empty key — "
+        "anyone who knew the fallback could forge session cookies. Set ISOMER_SECRET "
+        "(e.g. `openssl rand -base64 48`) in the container environment and retry."
+    )
+
 app = Flask(__name__, template_folder="templates")
-app.secret_key = os.environ.get("ISOMER_SECRET", "isomer-alpha-secret-change-me")
+app.secret_key = _secret
+app.config.update(
+    # Reject multipart bodies larger than 50 MiB (evidence uploads, imports).
+    MAX_CONTENT_LENGTH=50 * 1024 * 1024,
+    # Cookie hardening.
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    PERMANENT_SESSION_LIFETIME=datetime.timedelta(hours=8),
+)
 
 # Custom Jinja2 filter to parse JSON strings
 @app.template_filter('from_json')
@@ -150,13 +172,26 @@ def init_db():
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
     """)
-    # Seed default admin if no users
+    # First-boot bootstrap: seed a single admin user with a random password
+    # (or the operator-supplied ISOMER_BOOTSTRAP_PASSWORD) and print it once
+    # to stderr. We never ship a fixed `admin/admin` credential — anyone
+    # who knew that default could walk straight in.
     cur = conn.execute("SELECT COUNT(*) as c FROM users")
     if cur.fetchone()["c"] == 0:
+        bootstrap_pw = os.environ.get("ISOMER_BOOTSTRAP_PASSWORD") or secrets.token_urlsafe(18)
         conn.execute(
             "INSERT INTO users (id, username, password_hash, display_name, role) VALUES (?,?,?,?,?)",
-            (str(uuid.uuid4()), "admin", generate_password_hash("admin"), "Administrator", "admin")
+            (str(uuid.uuid4()), "admin", generate_password_hash(bootstrap_pw), "Administrator", "admin")
         )
+        sys.stderr.write(
+            "\n" + "=" * 62 + "\n"
+            "  ISOMER — bootstrap admin credentials (printed once):\n"
+            "    username: admin\n"
+            f"    password: {bootstrap_pw}\n"
+            "  Log in and change this password from Settings → Users.\n"
+            + "=" * 62 + "\n\n"
+        )
+        sys.stderr.flush()
     conn.commit()
     conn.close()
 
