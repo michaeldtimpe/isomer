@@ -253,9 +253,25 @@ def update_session_activity():
     sid = session.get("session_id")
     if not sid:
         return
-    import time
     now = time.time()
     conn = get_db()
+    # Re-validate the user on every request so deletions and role changes
+    # in the admin panel take effect without waiting for the cookie to
+    # expire. If the user has been deleted or their role no longer matches
+    # what the session cookie claims, clear the session and bounce to login.
+    user_id = session.get("user_id")
+    fresh = conn.execute(
+        "SELECT role FROM users WHERE id=?", (user_id,)
+    ).fetchone() if user_id else None
+    if fresh is None or fresh["role"] != session.get("role"):
+        conn.execute("DELETE FROM sessions WHERE id=?", (sid,))
+        conn.commit()
+        conn.close()
+        session.clear()
+        if request.endpoint not in ("login", "static"):
+            return redirect(url_for("login"))
+        return
+
     conn.execute("UPDATE sessions SET last_active_at=? WHERE id=?", (now_iso(), sid))
     # Clean up stale sessions (>30 min) at most once per minute
     if now - _last_session_cleanup[0] > 60:
@@ -264,6 +280,46 @@ def update_session_activity():
         conn.execute("DELETE FROM sessions WHERE last_active_at < ?", (cutoff,))
     conn.commit()
     conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Login rate limit — in-memory sliding window keyed on (username, remote IP).
+# Not a crypto boundary; nginx has a stricter per-IP limiter in front. This
+# exists so a single IP can't iterate the password space on one username.
+# ---------------------------------------------------------------------------
+_LOGIN_WINDOW_SEC = 5 * 60
+_LOGIN_MAX_PER_WINDOW = 6
+_login_attempts: dict[tuple[str, str], deque] = defaultdict(deque)
+_login_lock = Lock()
+
+
+def _register_login_attempt(username: str, remote: str) -> bool:
+    """Return True if the attempt is allowed, False if rate-limited."""
+    key = (username.lower(), remote)
+    now = time.monotonic()
+    cutoff = now - _LOGIN_WINDOW_SEC
+    with _login_lock:
+        dq = _login_attempts[key]
+        while dq and dq[0] < cutoff:
+            dq.popleft()
+        if len(dq) >= _LOGIN_MAX_PER_WINDOW:
+            return False
+        dq.append(now)
+        return True
+
+
+def _client_ip() -> str:
+    fwd = request.headers.get("X-Forwarded-For") or request.headers.get("X-Real-IP")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.remote_addr or "unknown"
+
+
+# Extensions that browsers execute inline in the origin's security context
+# when served with their default Content-Type. Evidence_view forces
+# Content-Disposition: attachment for these so a hostile auditor can't plant
+# a stored XSS via /evidence/<id>/view.
+_INLINE_EXEC_EXTS = {"svg", "html", "htm", "xhtml", "xml"}
 
 # ---------------------------------------------------------------------------
 # Control data loader (from JSON reference files)
@@ -308,6 +364,9 @@ def login():
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
+        if not _register_login_attempt(username, _client_ip()):
+            flash("Too many login attempts. Wait 5 minutes and try again.", "error")
+            return render_template("login.html"), 429
         conn = get_db()
         user = conn.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
         if user and check_password_hash(user["password_hash"], password):
@@ -610,16 +669,28 @@ def company_import():
                     (str(uuid.uuid4()), new_id, ct["name"], ct.get("email"),
                      ct.get("phone"), ct.get("department"))
                 )
-            # Extract evidence files
+            # Extract evidence files. `pathlib.Path` is syntactic — it does
+            # not collapse `..`, so a zip entry like `evidence/../../etc/x`
+            # would write outside UPLOAD_DIR. Resolve the final path and
+            # require that it lives under co_upload; skip anything that
+            # tries to escape (classic zip-slip defense).
             co_upload = UPLOAD_DIR / new_id
             co_upload.mkdir(parents=True, exist_ok=True)
+            co_upload_real = co_upload.resolve()
             for name in zf.namelist():
-                if name.startswith("evidence/") and not name.endswith("/"):
-                    rel = name[len("evidence/"):]
-                    dest = co_upload / rel
-                    dest.parent.mkdir(parents=True, exist_ok=True)
-                    with open(dest, "wb") as out:
-                        out.write(zf.read(name))
+                if not (name.startswith("evidence/") and not name.endswith("/")):
+                    continue
+                rel = name[len("evidence/"):]
+                if not rel or rel.startswith("/") or ".." in rel.split("/"):
+                    continue  # overtly hostile — skip without touching fs
+                dest = (co_upload / rel).resolve()
+                try:
+                    dest.relative_to(co_upload_real)
+                except ValueError:
+                    continue  # resolved outside the intended dir
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                with open(dest, "wb") as out:
+                    out.write(zf.read(name))
             conn.commit()
             conn.close()
             flash(f"Company '{co['name']}' imported successfully", "success")
@@ -730,7 +801,15 @@ def evidence_view(evidence_id):
     fpath = UPLOAD_DIR / ev["company_id"] / ev["filename"]
     if not fpath.exists():
         abort(404)
-    return send_file(str(fpath), download_name=ev["original_filename"])
+    # SVG/HTML/XML execute inline in the origin's security context. Force
+    # Content-Disposition: attachment for those so an uploaded <svg onload>
+    # can't turn into stored XSS for anyone else who opens the evidence.
+    ext = (ev["original_filename"].rsplit(".", 1)[-1].lower()
+           if "." in ev["original_filename"] else "")
+    as_attachment = ext in _INLINE_EXEC_EXTS
+    return send_file(str(fpath),
+                     download_name=ev["original_filename"],
+                     as_attachment=as_attachment)
 
 
 @app.route("/evidence/<evidence_id>/delete", methods=["POST"])
