@@ -3,36 +3,79 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{% block title %}Isomer{% endblock %} — Compliance Tracker</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<title>{% block title %}isomer{% endblock %}</title>
+<script>
+  (function () {
+    try {
+      var t = localStorage.getItem("zoleb-theme") || "dark";
+      document.documentElement.setAttribute("data-theme", t);
+    } catch (e) {
+      document.documentElement.setAttribute("data-theme", "dark");
+    }
+  })();
+</script>
 <style>
-:root {
-  --bg-primary: #0a0e17;
-  --bg-secondary: #111827;
-  --bg-card: #1a2234;
-  --bg-hover: #243049;
-  --border: #2a3650;
-  --border-light: #374766;
-  --text-primary: #e8ecf4;
-  --text-secondary: #8b95a9;
-  --text-muted: #5b6580;
-  --accent: #38bdf8;
-  --accent-dim: #1e6fa0;
-  --green: #34d399;
-  --green-dim: rgba(52,211,153,0.12);
-  --yellow: #fbbf24;
-  --yellow-dim: rgba(251,191,36,0.12);
-  --red: #f87171;
-  --red-dim: rgba(248,113,113,0.12);
-  --orange: #fb923c;
-  --orange-dim: rgba(251,146,60,0.12);
-  --purple: #a78bfa;
-  --purple-dim: rgba(167,139,250,0.12);
-  --font: 'DM Sans', -apple-system, sans-serif;
-  --mono: 'JetBrains Mono', monospace;
+@font-face {
+  font-family: "InterVariable";
+  src: url("/static/InterVariable.ttf") format("truetype-variations"),
+       url("/static/InterVariable.ttf") format("truetype");
+  font-weight: 100 900;
+  font-display: swap;
+}
+:root,
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-primary: #272822;
+  --bg-secondary: #1f201b;
+  --bg-card: rgba(62, 61, 50, 0.6);
+  --bg-hover: rgba(73, 72, 62, 0.85);
+  --border: rgba(248, 248, 242, 0.1);
+  --border-light: rgba(248, 248, 242, 0.18);
+  --text-primary: #f8f8f2;
+  --text-secondary: #b8b8a8;
+  --text-muted: #75715e;
+  --accent: #fd971f;
+  --accent-dim: #a66410;
+  --accent-soft: rgba(253, 151, 31, 0.14);
+  --green: #a6e22e;
+  --green-dim: rgba(166, 226, 46, 0.12);
+  --yellow: #e6db74;
+  --yellow-dim: rgba(230, 219, 116, 0.14);
+  --red: #f92672;
+  --red-dim: rgba(249, 38, 114, 0.14);
+  --orange: #fd971f;
+  --orange-dim: rgba(253, 151, 31, 0.14);
+  --purple: #ae81ff;
+  --purple-dim: rgba(174, 129, 255, 0.14);
+  --font: "InterVariable", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --radius: 8px;
   --radius-lg: 12px;
+}
+html[data-theme="light"] {
+  color-scheme: light;
+  --bg-primary: #fafafa;
+  --bg-secondary: #f0f0ee;
+  --bg-card: rgba(39, 40, 34, 0.04);
+  --bg-hover: rgba(39, 40, 34, 0.08);
+  --border: rgba(39, 40, 34, 0.12);
+  --border-light: rgba(39, 40, 34, 0.2);
+  --text-primary: #272822;
+  --text-secondary: #4d4e47;
+  --text-muted: #75715e;
+  --accent: #c24f0d;
+  --accent-dim: #8a3806;
+  --accent-soft: rgba(194, 79, 13, 0.12);
+  --green: #4d8500;
+  --green-dim: rgba(77, 133, 0, 0.14);
+  --yellow: #8f7100;
+  --yellow-dim: rgba(143, 113, 0, 0.12);
+  --red: #c00e5a;
+  --red-dim: rgba(192, 14, 90, 0.12);
+  --orange: #c24f0d;
+  --orange-dim: rgba(194, 79, 13, 0.12);
+  --purple: #6f44b8;
+  --purple-dim: rgba(111, 68, 184, 0.14);
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 15px; }
@@ -59,7 +102,7 @@ a:hover { text-decoration: underline; }
 .topbar-brand svg { width: 28px; height: 28px; }
 .topbar-brand span.version {
   font-size: 0.65rem; font-weight: 500; text-transform: uppercase;
-  color: var(--accent); background: rgba(56,189,248,0.1);
+  color: var(--accent); background: var(--accent-soft);
   padding: 2px 6px; border-radius: 4px; letter-spacing: 0.06em;
 }
 .topbar-nav { display: flex; align-items: center; gap: 1.5rem; }
@@ -104,7 +147,7 @@ a:hover { text-decoration: underline; }
   border: none; cursor: pointer; transition: all 0.15s;
 }
 .btn-primary { background: var(--accent); color: #0a0e17; }
-.btn-primary:hover { background: #5cc9f9; text-decoration: none; }
+.btn-primary:hover { background: var(--accent-dim); text-decoration: none; }
 .btn-secondary { background: var(--bg-hover); color: var(--text-primary); border: 1px solid var(--border-light); }
 .btn-secondary:hover { background: var(--border); }
 .btn-danger { background: var(--red-dim); color: var(--red); }
@@ -123,7 +166,7 @@ input, select, textarea {
 }
 input:focus, select:focus, textarea:focus {
   outline: none; border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(56,189,248,0.12);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 textarea { resize: vertical; min-height: 80px; }
 label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.3rem; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -135,7 +178,7 @@ label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-s
 table { width: 100%; border-collapse: collapse; }
 th { text-align: left; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; padding: 0.7rem 0.8rem; border-bottom: 1px solid var(--border); }
 td { padding: 0.7rem 0.8rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; vertical-align: middle; }
-tr:hover td { background: rgba(56,189,248,0.03); }
+tr:hover td { background: var(--accent-soft); }
 
 /* Status badges */
 .status {
@@ -144,7 +187,7 @@ tr:hover td { background: rgba(56,189,248,0.03); }
   border-radius: 99px; text-transform: uppercase; letter-spacing: 0.04em;
 }
 .status-new { background: var(--purple-dim); color: var(--purple); }
-.status-in_progress, .status-in-progress { background: rgba(56,189,248,0.12); color: var(--accent); }
+.status-in_progress, .status-in-progress { background: var(--accent-soft); color: var(--accent); }
 .status-stalled { background: var(--orange-dim); color: var(--orange); }
 .status-closed { background: var(--green-dim); color: var(--green); }
 
@@ -242,14 +285,14 @@ tr:hover td { background: rgba(56,189,248,0.03); }
 <body>
 <div class="topbar">
   <div class="flex items-center gap-2">
-    <a href="/" class="topbar-brand" style="text-decoration:none">
+    <a href="/" class="topbar-brand" style="text-decoration:none; color: var(--accent)">
       <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="2" y="2" width="28" height="28" rx="6" fill="#38bdf8" fill-opacity="0.15" stroke="#38bdf8" stroke-width="1.5"/>
-        <path d="M10 10h4v12h-4z" fill="#38bdf8" opacity="0.6"/>
-        <path d="M18 8h4v14h-4z" fill="#38bdf8"/>
-        <path d="M8 22h16" stroke="#38bdf8" stroke-width="1.5" stroke-linecap="round"/>
+        <rect x="2" y="2" width="28" height="28" rx="6" fill="currentColor" fill-opacity="0.15" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M10 10h4v12h-4z" fill="currentColor" opacity="0.6"/>
+        <path d="M18 8h4v14h-4z" fill="currentColor"/>
+        <path d="M8 22h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
       </svg>
-      Isomer <span class="version">Alpha</span>
+      <span style="color: var(--text-primary)">Isomer <span class="version">Alpha</span></span>
     </a>
     <div class="topbar-nav" style="margin-left: 2rem;">
       <a href="/">Dashboard</a>
@@ -257,16 +300,17 @@ tr:hover td { background: rgba(56,189,248,0.03); }
       {% if is_admin_portal and session.get('role') == 'admin' %}<a href="/settings">Settings</a>{% endif %}
     </div>
   </div>
-  {% if session.get('user_id') %}
   <div class="topbar-user">
+    <button id="theme-toggle" class="btn btn-ghost btn-sm" type="button" aria-label="Toggle color theme" style="margin-right: 0.5rem">theme</button>
+    {% if session.get('user_id') %}
     <span>{{ session.get('display_name', session.get('username')) }}</span>
     <span class="role-badge role-{{ session.get('role','reporter') }}">{{ session.get('role','reporter') }}</span>
     <form method="POST" action="/logout" style="display:inline;margin-left:0.5rem">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="btn btn-ghost btn-sm">Logout</button>
     </form>
+    {% endif %}
   </div>
-  {% endif %}
 </div>
 
 <div class="container">
@@ -289,6 +333,23 @@ document.querySelectorAll('.accordion-trigger').forEach(btn => {
     content.classList.toggle('open');
   });
 });
+
+(function () {
+  const root = document.documentElement;
+  const btn = document.getElementById("theme-toggle");
+  if (!btn) return;
+  function sync() {
+    const dark = root.getAttribute("data-theme") !== "light";
+    btn.textContent = dark ? "light mode" : "dark mode";
+  }
+  btn.addEventListener("click", function () {
+    const next = root.getAttribute("data-theme") === "light" ? "dark" : "light";
+    root.setAttribute("data-theme", next);
+    try { localStorage.setItem("zoleb-theme", next); } catch (e) {}
+    sync();
+  });
+  sync();
+})();
 </script>
 {% block extra_js %}{% endblock %}
 </body>
