@@ -62,6 +62,8 @@ isomer/
 ├── data/
 │   ├── iso27001_controls.json   # 93 Annex A controls with detailed metadata
 │   └── soc2_controls.json       # 44 SOC 2 criteria with detailed metadata
+├── static/
+│   └── InterVariable.ttf  # locally-served font referenced by templates
 └── templates/
     ├── base.html         # Layout, nav, CSS design system, logout POST form
     ├── login.html        # Authentication page (rate-limited in app)
@@ -72,6 +74,10 @@ isomer/
     ├── settings.html     # User management (admin only)
     └── report_view.html  # In-browser audit report
 ```
+
+## Theming
+
+Isomer follows the [zoleb.com style guide](https://github.com/michaeldtimpe/zoleb/tree/main/style-guide) — Monokai dark (default) with a Monokai light toggle, the shared `zoleb-theme` localStorage key, and locally-served `InterVariable.ttf`. The topbar "I" mark uses `currentColor` so it tracks `--accent` in both themes. Role badges (admin/auditor/reporter) stay distinct with palette-adjacent hues rather than the single accent color.
 
 ## Ports & Routing
 
