@@ -1,4 +1,4 @@
-version: "3.8"
+version: '3.8'
 
 services:
   isomer:
@@ -17,8 +17,24 @@ services:
       - .env
     environment:
       - ISOMER_DATA=/data
+      - DATABASE_URL=postgres://user:password@db:5432/isomer
+      - REDIS_URL=redis://redis:6379/0
     restart: unless-stopped
+
+  db:
+    image: postgres:13
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=isomer
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:6.2
 
 volumes:
   isomer_data:
+    driver: local
+  db_data:
     driver: local
