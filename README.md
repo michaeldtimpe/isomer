@@ -6,30 +6,23 @@ Isomer is a Dockerized, browser-based compliance tracking tool for **ISO 27001**
 
 ---
 
-## Quick Start
+## Quickstart
 
-```bash
-# First-time setup: create a .env with a real secret.
-# The app refuses to start without ISOMER_SECRET set.
-cp .env.example .env
-python3 -c "import secrets; print('ISOMER_SECRET=' + secrets.token_urlsafe(48))" > .env
-chmod 600 .env
+To run the app locally with Docker Compose:
 
-# Build and run
-docker compose up -d --build
+1. **Start the application:**
+   ```bash
+   docker compose up -d --build
+   ```
 
-# On the first boot the container generates a one-time bootstrap
-# password for the `admin` user and prints it to stderr. Read it once
-# and change it from Settings → Users on first login:
-docker logs isomer 2>&1 | grep -A1 "bootstrap admin"
+2. **Access the dashboard:**
+   The application will be available at [http://127.0.0.1:27001](http://127.0.0.1:27001)
 
-# Alternatively, pass ISOMER_BOOTSTRAP_PASSWORD in .env on first boot
-# to pick the initial password yourself (env is read only when the
-# users table is empty).
-
-# Local access (loopback-only; put nginx in front for remote):
-# http://127.0.0.1:27001/
-```
+3. **Initial setup:**
+   - On first boot, the container generates a one-time bootstrap password for the `admin` user
+   - View the password in the container logs: `docker logs isomer 2>&1 | grep -A1 "bootstrap admin"`
+   - Log in with username `admin` and the generated password
+   - Change the password from Settings → Users on first login
 
 ## Features
 
