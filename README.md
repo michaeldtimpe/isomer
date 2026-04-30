@@ -6,6 +6,26 @@ Isomer is a Dockerized, browser-based compliance tracking tool for **ISO 27001**
 
 ---
 
+## Quickstart
+
+Run the app locally with a single command — `docker-compose.yml` is configured to publish the Flask app (which listens on port **27001** per `app.py`) on `127.0.0.1:27001`:
+
+```bash
+# Build and start the container (docker-compose.yml handles ports, volumes, env)
+docker compose up -d --build
+
+# Wait for the bootstrap password to be printed, then grab it:
+docker logs isomer 2>&1 | grep -A1 "bootstrap admin"
+
+# Open the dashboard in your browser:
+#   http://127.0.0.1:27001/
+#   (log in with username `admin` and the bootstrap password)
+```
+
+The dashboard at `/` shows aggregate progress stats across all companies. See the full [Quick Start](#quick-start) below for first-time `.env` setup and configuration details.
+
+---
+
 ## Quick Start
 
 ```bash
