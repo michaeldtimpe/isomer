@@ -15,7 +15,7 @@ cp .env.example .env
 python3 -c "import secrets; print('ISOMER_SECRET=' + secrets.token_urlsafe(48))" > .env
 chmod 600 .env
 
-# Build and run
+# Build and run via docker-compose.yml (see docker-compose.yml for config)
 docker compose up -d --build
 
 # On the first boot the container generates a one-time bootstrap
@@ -28,8 +28,13 @@ docker logs isomer 2>&1 | grep -A1 "bootstrap admin"
 # users table is empty).
 
 # Local access (loopback-only; put nginx in front for remote):
+# The app listens on port 27001 (see app.py line 1138).
 # http://127.0.0.1:27001/
 ```
+
+### Accessing the Dashboard
+
+After starting the container, open your browser and navigate to **http://127.0.0.1:27001/**. Log in with the `admin` username and the bootstrap password printed during first boot. The dashboard at `/` shows an overview of all companies and their compliance progress.
 
 ## Features
 
