@@ -268,7 +268,7 @@ def update_session_activity():
         conn.commit()
         conn.close()
         session.clear()
-        if request.endpoint not in ("login", "static"):
+        if request.endpoint not in ("login", "static", "health"):
             return redirect(url_for("login"))
         return
 
@@ -280,6 +280,15 @@ def update_session_activity():
         conn.execute("DELETE FROM sessions WHERE last_active_at < ?", (cutoff,))
     conn.commit()
     conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Health check — public, no auth required
+# ---------------------------------------------------------------------------
+
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok"}), 200
 
 
 # ---------------------------------------------------------------------------
