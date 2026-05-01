@@ -8,28 +8,50 @@ Isomer is a Dockerized, browser-based compliance tracking tool for **ISO 27001**
 
 ## Quick Start
 
+### Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/) installed
+- A Unix-like environment (Linux, macOS, WSL2)
+
+### 1. Generate a secret key
+
+The app refuses to start without `ISOMER_SECRET` set. Create a `.env` file:
+
 ```bash
-# First-time setup: create a .env with a real secret.
-# The app refuses to start without ISOMER_SECRET set.
 cp .env.example .env
 python3 -c "import secrets; print('ISOMER_SECRET=' + secrets.token_urlsafe(48))" > .env
 chmod 600 .env
-
-# Build and run
-docker compose up -d --build
-
-# On the first boot the container generates a one-time bootstrap
-# password for the `admin` user and prints it to stderr. Read it once
-# and change it from Settings → Users on first login:
-docker logs isomer 2>&1 | grep -A1 "bootstrap admin"
-
-# Alternatively, pass ISOMER_BOOTSTRAP_PASSWORD in .env on first boot
-# to pick the initial password yourself (env is read only when the
-# users table is empty).
-
-# Local access (loopback-only; put nginx in front for remote):
-# http://127.0.0.1:27001/
 ```
+
+Optionally set `ISOMER_BOOTSTRAP_PASSWORD` in `.env` to choose the initial admin password yourself (the app generates a random one and prints it to stderr if this is omitted).
+
+### 2. Run with docker-compose
+
+The [`docker-compose.yml`](docker-compose.yml) file defines the `isomer` service, binds the app to `127.0.0.1:27001` (matching the default port in [`app.py`](app.py)), and mounts a named volume for data persistence.
+
+```bash
+docker compose up -d --build
+```
+
+On the first boot the container generates a one-time bootstrap password for the `admin` user and prints it to stderr:
+
+```bash
+docker logs isomer 2>&1 | grep -A1 "bootstrap admin"
+```
+
+Read the password once and change it from **Settings → Users** on first login.
+
+### 3. Access the dashboard
+
+Open your browser and navigate to:
+
+```
+http://127.0.0.1:27001/
+```
+
+Log in with `admin` and the bootstrap password. The dashboard at `/` shows an aggregate overview of all companies, their control statuses, and compliance progress.
+
+> **Note:** The app binds only to loopback (`127.0.0.1`). For remote access, place an nginx reverse proxy in front of it (see the [`deploy/`](deploy/) directory for a sample vhost config).
 
 ## Features
 
