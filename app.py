@@ -1096,6 +1096,11 @@ def user_edit(user_id):
 # API endpoints for AJAX
 # ---------------------------------------------------------------------------
 
+@app.route("/health")
+def health():
+    return jsonify({"status": "ok"})
+
+
 @app.route("/api/control/<control_id>/tags", methods=["POST"])
 @role_required("auditor")
 def api_control_tags(control_id):
