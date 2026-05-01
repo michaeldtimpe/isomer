@@ -15,8 +15,8 @@ cp .env.example .env
 python3 -c "import secrets; print('ISOMER_SECRET=' + secrets.token_urlsafe(48))" > .env
 chmod 600 .env
 
-# Build and run
-docker compose up -d --build
+# Build and run (see docker-compose.yml for service config)
+docker compose -f docker-compose.yml up -d --build
 
 # On the first boot the container generates a one-time bootstrap
 # password for the `admin` user and prints it to stderr. Read it once
@@ -28,6 +28,7 @@ docker logs isomer 2>&1 | grep -A1 "bootstrap admin"
 # users table is empty).
 
 # Local access (loopback-only; put nginx in front for remote):
+# The default port 27001 is defined in app.py and published by docker-compose.yml.
 # http://127.0.0.1:27001/
 ```
 
