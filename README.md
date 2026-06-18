@@ -31,6 +31,27 @@ docker logs isomer 2>&1 | grep -A1 "bootstrap admin"
 # http://127.0.0.1:27001/
 ```
 
+## Quickstart
+
+The fastest way to get Isomer running locally is with Docker Compose. The app listens on `127.0.0.1:27001` (see [`docker-compose.yml`](docker-compose.yml) and [`app.py`](app.py)).
+
+```bash
+# 1. Create a .env file with a secret key (required — the app refuses to start without it)
+cp .env.example .env
+python3 -c "import secrets; print('ISOMER_SECRET=' + secrets.token_urlsafe(48))" >> .env
+
+# 2. Start the containers
+docker compose up -d --build
+
+# 3. Grab the bootstrap admin password (printed once on first boot)
+docker logs isomer 2>&1 | grep -A1 "bootstrap admin"
+
+# 4. Open the dashboard in your browser
+#    http://127.0.0.1:27001/
+```
+
+Log in with `admin` and the password from the logs. After logging in, navigate to **Settings → Users** to change the password and create additional accounts.
+
 ## Features
 
 | Feature | Description |
