@@ -62,6 +62,13 @@ def _handle_csrf_error(e):
     flash("Session token expired or missing — please reload and try again.", "error")
     return redirect(request.referrer or url_for("dashboard")), 400
 
+
+@csrf.exempt
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok"}), 200
+
+
 # Custom Jinja2 filter to parse JSON strings
 @app.template_filter('from_json')
 def from_json_filter(value):
