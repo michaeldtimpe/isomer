@@ -8,6 +8,16 @@ Isomer is a Dockerized, browser-based compliance tracking tool for **ISO 27001**
 
 ## Quick Start
 
+### Running the app with docker-compose
+
+To run the app using docker-compose, execute the following command:
+
+```bash
+docker compose up -d --build
+```
+
+This command will build the Docker images and start the containers in detached mode. The app will be accessible on port `27001`.
+
 ```bash
 # First-time setup: create a .env with a real secret.
 # The app refuses to start without ISOMER_SECRET set.
