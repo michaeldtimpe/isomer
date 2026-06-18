@@ -1134,5 +1134,14 @@ def inject_portal_flag():
     return {"is_admin_portal": session.get("role") == "admin"}
 
 
+# ---------------------------------------------------------------------------
+# Health check
+# ---------------------------------------------------------------------------
+
+@app.route("/health")
+def health():
+    return jsonify({"status": "ok"}), 200
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=27001, debug=False)
