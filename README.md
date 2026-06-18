@@ -31,6 +31,23 @@ docker logs isomer 2>&1 | grep -A1 "bootstrap admin"
 # http://127.0.0.1:27001/
 ```
 
+## Quickstart
+
+To run the application locally using Docker Compose:
+
+1. Ensure you have Docker and Docker Compose installed
+2. Run the following command to start the application:
+   ```bash
+   docker compose up -d
+   ```
+
+3. Access the dashboard at:
+   ```
+   http://127.0.0.1:27001/
+   ```
+
+The application will be available on port 27001, as configured in the `app.py` file and mapped by `docker-compose.yml`.
+
 ## Features
 
 | Feature | Description |
